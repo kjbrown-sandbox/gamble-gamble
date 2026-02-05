@@ -4,24 +4,6 @@ use bevy::prelude::*;
 use crate::components::{Health, Team, Soldier};
 use crate::resources::GameStatus;
 
-/// Health display system - runs every frame to show current health.
-/// This helps us debug and see the game is working.
-pub fn health_display_system(
-    query: Query<(&Health, &Team), With<Soldier>>,
-) {
-    // Collect health for debugging - print occasionally to avoid spam
-    let mut healths = Vec::new();
-    for (_health, _team) in query.iter() {
-        healths.push(_health.current);
-    }
-    
-    // Only print sometimes (every 60 frames = roughly once per second at 60fps)
-    // This is a crude way to reduce console spam
-    if healths.len() == 2 && healths.iter().sum::<i32>() % 120 == 0 {
-        println!("Player HP: {}, Enemy HP: {}", healths[0], healths[1]);
-    }
-}
-
 /// Death check system - runs every frame to detect dead soldiers and end the game.
 /// When a soldier dies, they're despawned from the world.
 /// When all soldiers on one team are dead, the game ends.

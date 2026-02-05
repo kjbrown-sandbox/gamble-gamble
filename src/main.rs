@@ -29,11 +29,10 @@ fn main() {
         .add_systems(
             Update,
             (
-                systems::attack_system,
-                systems::health_display_system,
+               systems::game_over_system,
+                (systems::attack_system,
                 systems::death_check_system,
-                systems::game_over_system,
-                systems::render_health_bars,
+                systems::render_health_bars).chain(),
             ),
         )
         // Finally, .run() starts the game loop
