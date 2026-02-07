@@ -2,7 +2,7 @@
 // Handles soldiers attacking each other.
 
 use bevy::prelude::*;
-use crate::components::{Health, Team, Soldier, AttackCooldown};
+use crate::components::{Health, Team, Soldier, AttackCooldown, DamageEvent};
 use rand::Rng;
 
 /// Attack system - runs every frame to handle combat.
@@ -16,6 +16,9 @@ pub fn attack_system(
         Query<&mut Health, With<Soldier>>,
     )>,
     time: Res<Time>,
+    // Commands lets us queue operations to run after the system completes.
+    // We use it here to "trigger" events via the observer pattern.
+    mut commands: Commands,
 ) {
     let delta_time = time.delta_secs();
     let mut rng = rand::thread_rng();
@@ -65,6 +68,16 @@ pub fn attack_system(
         if let Ok(mut target_health) = param_set.p1().get_mut(target_entity) {
             let damage = rng.gen_range(10..=20);
             target_health.take_damage(damage);
+
+            // Trigger a DamageEvent so observers can react.
+            // In Bevy 0.18, events use the "observer" pattern:
+            // - commands.trigger() fires a "global" event that any observer can see
+            // - Observers registered with .add_observer() will run immediately
+            // This replaces the old EventWriter/EventReader pattern.
+            commands.trigger(DamageEvent {
+                target: target_entity,
+                amount: damage,
+            });
         }
     }
 }

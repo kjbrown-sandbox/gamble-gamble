@@ -90,3 +90,28 @@ pub struct HealthDisplay {
 #[derive(Component)]
 pub struct GameOverText;
 
+// =============================================================================
+// EVENTS
+// =============================================================================
+// Events are Bevy's way of communicating between systems without tight coupling.
+// One system sends an event, and any number of other systems can listen for it.
+// This is the "Observer" or "Pub/Sub" pattern built into Bevy's ECS.
+//
+// Events are stored in a ring buffer and cleared every frame (by default).
+// Systems read events using EventReader<T> and send using EventWriter<T>.
+
+/// DamageEvent - fired whenever an entity takes damage.
+///
+/// This event allows other systems (like audio, particles, UI) to react to damage
+/// without the combat system needing to know about them. This is called "loose coupling"
+/// and makes the code more modular and testable.
+///
+/// The #[derive(Event)] macro is required for any struct used as an event.
+#[derive(Event)]
+pub struct DamageEvent {
+    /// The entity that took damage (useful for visual effects at their position)
+    pub target: Entity,
+    /// How much damage was dealt (useful for scaling effects or showing damage numbers)
+    pub amount: i32,
+}
+

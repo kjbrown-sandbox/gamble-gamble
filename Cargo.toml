@@ -6,7 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bevy = "0.18.0"
+# Bevy requires explicit feature flags for audio formats.
+# "wav" enables WAV file support (not included by default in 0.18)
+# Other audio features: "vorbis" (OGG), "mp3", "flac"
+bevy = { version = "0.18.0", features = ["wav"] }
 rand = "0.8"
 
 # Enable a small amount of optimization in the dev profile.
