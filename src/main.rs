@@ -19,12 +19,20 @@ fn main() {
         .init_resource::<GameStatus>()
 
         // Startup systems run once when the app starts.
-        // We use a tuple to run multiple startup systems.
-        // Order within the tuple is not guaranteed unless you use .chain()
+        //
+        // ORDERING WITH .chain():
+        // Systems in a tuple run in parallel by default (for performance).
+        // But some systems depend on others completing first:
+        // - setup_attacks must run before spawn_soldiers (soldiers reference attacks)
+        // - setup_audio can run in parallel with either
+        //
+        // .chain() makes systems run sequentially in order.
+        // Here we chain the attack setup, then spawn soldiers.
         .add_systems(Startup, (
-            systems::spawn_soldiers,
-            systems::setup_audio,  // Load audio assets at startup
-        ))
+            systems::setup_attacks,   // Initialize AttackDatabase resource
+            systems::spawn_soldiers,  // Create soldiers with attack children
+        ).chain())
+        .add_systems(Startup, systems::setup_audio)  // Can run in parallel
 
         // OBSERVERS (Bevy 0.18's event system):
         // Observers are functions that react to triggered events.
@@ -37,16 +45,18 @@ fn main() {
 
         // Update systems run every frame
         // We add them in order of logical execution:
-        // 1. Process attacks and cooldowns (triggers DamageEvents)
-        // 2. Display health information
-        // 3. Check for deaths and game over conditions
-        // 4. Handle game over state
+        // 1. Update attack cooldowns (tick timers)
+        // 2. Process attacks (select attack, roll hit, apply effects)
+        // 3. Check for deaths
+        // 4. Update health bar UI
+        // 5. Handle game over state
         .add_systems(
             Update,
             (
                 systems::game_over_system,
                 (
-                    systems::attack_system,
+                    systems::update_attack_cooldowns,  // Tick cooldown timers
+                    systems::attack_system,            // Execute attacks
                     systems::death_check_system,
                     systems::render_health_bars,
                 ).chain(),

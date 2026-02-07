@@ -11,9 +11,12 @@ mod game_state;
 mod render;
 mod audio;
 
-pub use spawn::spawn_soldiers;
-pub use combat::attack_system;
+// Startup systems (run once at app start)
+pub use spawn::{setup_attacks, spawn_soldiers};
+pub use audio::{setup_audio, on_damage, GameAudio};
+
+// Update systems (run every frame)
+pub use combat::{update_attack_cooldowns, attack_system};
 pub use health::death_check_system;
 pub use game_state::game_over_system;
 pub use render::render_health_bars;
-pub use audio::{setup_audio, on_damage, GameAudio};

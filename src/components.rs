@@ -91,6 +91,171 @@ pub struct HealthDisplay {
 pub struct GameOverText;
 
 // =============================================================================
+// ATTACK SYSTEM
+// =============================================================================
+// This section defines a data-driven attack system where:
+// - Attack DEFINITIONS live in a Resource (like a database)
+// - Attack INSTANCES are child entities of soldiers (with runtime state)
+// - EFFECTS are enums that describe what happens on hit/miss
+//
+// This separation lets us:
+// - Define attacks once, reuse across many soldiers
+// - Give each soldier their own cooldown state per attack
+// - Easily add new effects without changing core combat code
+
+/// AttackId is a "newtype" wrapper around usize.
+///
+/// WHY USE A NEWTYPE?
+/// In Rust, a newtype is a tuple struct with one field: `struct Foo(Bar);`
+/// Benefits:
+/// 1. Type safety: Can't accidentally pass a random usize where AttackId is expected
+/// 2. Semantics: The type name documents what this number means
+/// 3. Methods: Can add methods specific to this ID type
+///
+/// The derives:
+/// - Clone, Copy: Can be copied without .clone() (it's just a number)
+/// - Debug: Can print it with {:?}
+/// - PartialEq, Eq: Can compare with ==
+/// - Hash: Can use as HashMap key
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct AttackId(pub usize);
+
+/// Effect represents something that happens as a result of an attack.
+///
+/// This is an enum with variants that hold different data.
+/// Using an enum lets us:
+/// - Have a fixed set of effect types (compiler catches typos)
+/// - Store different data per effect type
+/// - Match exhaustively (compiler warns if we miss a case)
+///
+/// Clone is needed because we'll copy effects when applying them.
+#[derive(Clone, Debug)]
+pub enum Effect {
+    /// Deal damage to the attack's target
+    DamageTarget(i32),
+
+    /// Deal damage to the attacker (self-harm, like a risky attack)
+    DamageSelf(i32),
+
+    /// Heal the attacker
+    HealSelf(i32),
+
+    // FUTURE EFFECTS (not implemented yet, but showing the pattern):
+    // ApplyBuff { stat: Stat, amount: f32, duration: f32 },
+    // ApplyDebuff { target: EffectTarget, stat: Stat, amount: f32, duration: f32 },
+    // Stun { duration: f32 },
+}
+
+/// Groups effects by when they trigger.
+///
+/// This lets attacks have different outcomes based on hit/miss:
+/// - on_success: Effects applied when the attack hits
+/// - on_fail: Effects applied when the attack misses
+/// - on_use: Effects applied regardless of hit/miss (always happens)
+#[derive(Clone, Debug, Default)]
+pub struct AttackEffects {
+    pub on_success: Vec<Effect>,
+    pub on_fail: Vec<Effect>,
+    pub on_use: Vec<Effect>,
+}
+
+/// The static definition of an attack type.
+///
+/// This is DEFINITION data - it doesn't change during gameplay.
+/// Think of it like a template or blueprint.
+/// The actual runtime state (cooldowns) lives in AttackInstance.
+#[derive(Clone, Debug)]
+pub struct AttackDefinition {
+    /// Human-readable name for UI/debugging
+    pub name: String,
+
+    /// Probability of hitting (0.0 = never, 1.0 = always)
+    /// This affects which effects trigger (on_success vs on_fail)
+    pub hit_chance: f32,
+
+    /// Seconds between uses of this attack
+    pub cooldown: f32,
+
+    /// What happens when this attack is used
+    pub effects: AttackEffects,
+}
+
+/// Resource containing all attack definitions.
+///
+/// This acts as a "database" of attacks that soldiers can reference.
+/// Using a Resource means:
+/// - One copy exists globally (not per-entity)
+/// - Any system can read it with Res<AttackDatabase>
+/// - Soldiers just store AttackId references, not full definitions
+///
+/// Vec is used for simplicity; HashMap<AttackId, AttackDefinition>
+/// would be better for large numbers of attacks.
+#[derive(Resource, Default)]
+pub struct AttackDatabase {
+    pub attacks: Vec<AttackDefinition>,
+}
+
+impl AttackDatabase {
+    /// Add an attack and return its ID
+    pub fn add(&mut self, attack: AttackDefinition) -> AttackId {
+        let id = AttackId(self.attacks.len());
+        self.attacks.push(attack);
+        id
+    }
+
+    /// Look up an attack by ID
+    pub fn get(&self, id: AttackId) -> Option<&AttackDefinition> {
+        self.attacks.get(id.0)
+    }
+}
+
+/// Component for attack instances attached to soldiers.
+///
+/// This is the INSTANCE data - it changes during gameplay.
+/// Each soldier has their own AttackInstance entities as children,
+/// each tracking its own cooldown state.
+///
+/// WHY CHILD ENTITIES?
+/// - Each attack can have its own components (cooldown, buffs, etc.)
+/// - Systems can query attacks directly: Query<&AttackInstance>
+/// - Easy to add/remove attacks from soldiers at runtime
+/// - Follows ECS composition pattern
+#[derive(Component)]
+pub struct AttackInstance {
+    /// Which attack definition this instance uses
+    pub attack_id: AttackId,
+
+    /// Current cooldown timer (counts down to 0)
+    pub current_cooldown: f32,
+}
+
+impl AttackInstance {
+    pub fn new(attack_id: AttackId) -> Self {
+        Self {
+            attack_id,
+            current_cooldown: 0.0, // Ready to use immediately
+        }
+    }
+
+    /// Check if this attack is ready to use
+    pub fn is_ready(&self) -> bool {
+        self.current_cooldown <= 0.0
+    }
+
+    /// Tick down the cooldown timer
+    pub fn tick(&mut self, delta: f32) {
+        if self.current_cooldown > 0.0 {
+            self.current_cooldown -= delta;
+        }
+    }
+
+    /// Start the cooldown (call after using the attack)
+    pub fn start_cooldown(&mut self, duration: f32) {
+        self.current_cooldown = duration;
+    }
+}
+
+// =============================================================================
 // EVENTS
 // =============================================================================
 // Events are Bevy's way of communicating between systems without tight coupling.
