@@ -46,17 +46,26 @@ fn main() {
         // Update systems run every frame
         // We add them in order of logical execution:
         // 1. Update attack cooldowns (tick timers)
-        // 2. Process attacks (select attack, roll hit, apply effects)
-        // 3. Check for deaths
-        // 4. Update health bar UI
-        // 5. Handle game over state
+        // 2. Cleanup finished attacks (despawn AttackInstance when cooldown done)
+        // 3. Process attacks (select attack, roll hit, apply effects)
+        // 4. Check for deaths
+        // 5. Update health bar UI
+        // 6. Handle game over state
+        //
+        // IMPORTANT: cleanup_finished_attacks runs BEFORE attack_system so that
+        // soldiers become "ready" on the same frame their cooldown finishes.
+        // This order ensures:
+        // - Cooldowns tick down
+        // - Finished AttackInstances are despawned (soldier now has no children)
+        // - attack_system sees soldier with no children → can attack again
         .add_systems(
             Update,
             (
                 systems::game_over_system,
                 (
-                    systems::update_attack_cooldowns,  // Tick cooldown timers
-                    systems::attack_system,            // Execute attacks
+                    systems::update_attack_cooldowns,     // Tick cooldown timers
+                    systems::cleanup_finished_attacks,    // Despawn finished attacks
+                    systems::attack_system,               // Execute attacks
                     systems::death_check_system,
                     systems::render_health_bars,
                 ).chain(),

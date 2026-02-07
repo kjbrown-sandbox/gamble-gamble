@@ -8,7 +8,7 @@
 use bevy::prelude::*;
 use crate::components::{
     Health, Team, Soldier, HealthDisplay, GameOverText,
-    AttackDatabase, AttackDefinition, AttackEffects, Effect, AttackInstance, AttackId,
+    AttackDatabase, AttackDefinition, AttackEffects, Effect, AttackId,
 };
 
 /// Initialize the attack database with all available attacks.
@@ -91,33 +91,6 @@ pub fn setup_attacks(mut commands: Commands) {
     commands.insert_resource(db);
 }
 
-/// Helper function to spawn attack children for a soldier.
-///
-/// CHILD ENTITIES IN BEVY:
-/// Bevy supports parent-child relationships between entities.
-/// - Children are spawned with .with_children() or commands.entity(parent).add_child(child)
-/// - Children automatically get Parent component, parents get Children component
-/// - When a parent is despawned, all children are despawned too
-/// - Children's Transforms are relative to their parent
-///
-/// We use this to attach attacks to soldiers - each attack is a child entity
-/// with its own AttackInstance component tracking cooldown state.
-fn spawn_attacks_for_soldier(
-    commands: &mut Commands,
-    soldier_entity: Entity,
-    attack_ids: Vec<AttackId>,
-) {
-    // Get a mutable reference to the soldier entity
-    // and add children to it
-    commands.entity(soldier_entity).with_children(|parent| {
-        for attack_id in attack_ids {
-            // Each attack is a child entity with just the AttackInstance component
-            // No Transform/Mesh needed since attacks are invisible game logic
-            parent.spawn(AttackInstance::new(attack_id));
-        }
-    });
-}
-
 /// Spawn system - runs once at startup to create the initial game state.
 /// This is a Startup system, so it runs exactly once when the app starts.
 ///
@@ -142,9 +115,18 @@ pub fn spawn_soldiers(
     let enemy_attacks = vec![AttackId(0), AttackId(2)];
 
     // Spawn player soldier (left side)
-    // Note: We no longer add AttackCooldown here - each attack has its own cooldown
+    //
+    // ATTACK SYSTEM DESIGN:
+    // The Soldier component now stores available_attacks - a list of AttackIds
+    // the soldier can use. No AttackInstance children are spawned upfront.
+    // When the soldier attacks:
+    // 1. Combat system picks a random attack from available_attacks
+    // 2. Spawns a temporary AttackInstance child with that attack's cooldown
+    // 3. While child exists, soldier cannot attack (busy)
+    // 4. When cooldown expires, child is despawned
+    // 5. Soldier can now attack again
     let player_entity = commands.spawn((
-        Soldier,
+        Soldier { available_attacks: player_attacks },
         Health::new(100),
         Team { is_player: true },
         Transform::default().with_translation(Vec3::new(-150.0, 0.0, 0.0)),
@@ -154,18 +136,13 @@ pub fn spawn_soldiers(
 
     // Spawn enemy soldier (right side)
     let enemy_entity = commands.spawn((
-        Soldier,
+        Soldier { available_attacks: enemy_attacks },
         Health::new(100),
         Team { is_player: false },
         Transform::default().with_translation(Vec3::new(150.0, 0.0, 0.0)),
         Mesh2d(soldier_mesh),
         MeshMaterial2d(white_material),
     )).id();
-
-    // Add attack children to each soldier
-    // Each attack becomes a child entity with its own cooldown state
-    spawn_attacks_for_soldier(&mut commands, player_entity, player_attacks);
-    spawn_attacks_for_soldier(&mut commands, enemy_entity, enemy_attacks);
 
     // Create a UI root node (invisible container for all UI)
     commands.spawn((

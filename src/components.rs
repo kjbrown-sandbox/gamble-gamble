@@ -70,11 +70,22 @@ impl AttackCooldown {
     }
 }
 
-/// Soldier component - a marker component that identifies this entity as a soldier.
-/// Marker components have no data - they just "tag" entities for identification.
-/// Useful for queries like "give me all soldiers" without needing to list all their components.
+/// Soldier component - identifies this entity as a soldier and stores their available attacks.
+///
+/// WHY STORE ATTACKS HERE?
+/// Previously, attacks were pre-spawned as child entities. But we want a soldier to only
+/// be able to have ONE attack "in flight" at a time. Now:
+/// - available_attacks: List of AttackIds this soldier CAN use (just data, not entities)
+/// - When attacking: we spawn a temporary AttackInstance child
+/// - While that child exists: soldier cannot attack (it's "busy")
+/// - When cooldown finishes: the AttackInstance is despawned
+/// - No children = soldier can pick and use another attack
 #[derive(Component)]
-pub struct Soldier;
+pub struct Soldier {
+    /// The attacks this soldier can choose from when ready to attack.
+    /// These are just IDs referencing the AttackDatabase - no entities spawned until used.
+    pub available_attacks: Vec<AttackId>,
+}
 
 /// HealthDisplay component - marks a UI text element that displays a soldier's health.
 /// This is used to link a UI element to a specific soldier entity.
@@ -211,47 +222,47 @@ impl AttackDatabase {
 
 /// Component for attack instances attached to soldiers.
 ///
-/// This is the INSTANCE data - it changes during gameplay.
-/// Each soldier has their own AttackInstance entities as children,
-/// each tracking its own cooldown state.
+/// This is a TEMPORARY child entity that exists while an attack is "in progress."
+/// It's spawned when a soldier uses an attack, and despawned when the cooldown finishes.
 ///
-/// WHY CHILD ENTITIES?
-/// - Each attack can have its own components (cooldown, buffs, etc.)
-/// - Systems can query attacks directly: Query<&AttackInstance>
-/// - Easy to add/remove attacks from soldiers at runtime
-/// - Follows ECS composition pattern
+/// WHY SPAWN/DESPAWN INSTEAD OF PRE-SPAWNING?
+/// We want a soldier to only have ONE attack active at a time. By making the
+/// AttackInstance a temporary child:
+/// - Presence of child = soldier is busy (can't attack)
+/// - No children = soldier is ready to pick a new attack
+/// - Simple check: if children.is_empty() { can_attack() }
+///
+/// This is cleaner than tracking a separate "is_attacking" boolean or cooldown
+/// on the Soldier component itself.
 #[derive(Component)]
 pub struct AttackInstance {
-    /// Which attack definition this instance uses
+    /// Which attack definition this instance uses (for debugging/effects)
     pub attack_id: AttackId,
 
-    /// Current cooldown timer (counts down to 0)
-    pub current_cooldown: f32,
+    /// Current cooldown timer (counts down to 0, then this entity is despawned)
+    pub cooldown_remaining: f32,
 }
 
 impl AttackInstance {
-    pub fn new(attack_id: AttackId) -> Self {
+    /// Create a new attack instance with cooldown already started.
+    /// This is spawned when the soldier uses an attack.
+    pub fn new(attack_id: AttackId, cooldown: f32) -> Self {
         Self {
             attack_id,
-            current_cooldown: 0.0, // Ready to use immediately
+            cooldown_remaining: cooldown,
         }
     }
 
-    /// Check if this attack is ready to use
-    pub fn is_ready(&self) -> bool {
-        self.current_cooldown <= 0.0
+    /// Check if this attack's cooldown is finished (ready to be despawned)
+    pub fn is_finished(&self) -> bool {
+        self.cooldown_remaining <= 0.0
     }
 
     /// Tick down the cooldown timer
     pub fn tick(&mut self, delta: f32) {
-        if self.current_cooldown > 0.0 {
-            self.current_cooldown -= delta;
+        if self.cooldown_remaining > 0.0 {
+            self.cooldown_remaining -= delta;
         }
-    }
-
-    /// Start the cooldown (call after using the attack)
-    pub fn start_cooldown(&mut self, duration: f32) {
-        self.current_cooldown = duration;
     }
 }
 

@@ -16,7 +16,7 @@ pub use spawn::{setup_attacks, spawn_soldiers};
 pub use audio::{setup_audio, on_damage, GameAudio};
 
 // Update systems (run every frame)
-pub use combat::{update_attack_cooldowns, attack_system};
+pub use combat::{update_attack_cooldowns, attack_system, cleanup_finished_attacks};
 pub use health::death_check_system;
 pub use game_state::game_over_system;
 pub use render::render_health_bars;

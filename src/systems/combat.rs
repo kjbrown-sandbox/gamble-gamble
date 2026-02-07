@@ -1,10 +1,11 @@
 // systems/combat.rs - Combat system
 //
 // This system handles the core combat loop:
-// 1. Find soldiers and their attack children
-// 2. Update attack cooldowns
-// 3. Execute ready attacks (roll for hit, apply effects)
-// 4. Fire events for audio/visual feedback
+// 1. Find soldiers who are ready to attack (no active AttackInstance child)
+// 2. Pick a random attack from their available_attacks
+// 3. Spawn an AttackInstance child (locks the soldier until cooldown finishes)
+// 4. Roll for hit, apply effects, fire events
+// 5. A separate cleanup system despawns finished AttackInstances
 
 use bevy::prelude::*;
 use crate::components::{
@@ -18,7 +19,8 @@ use rand::Rng;
 struct PendingAttack {
     attacker: Entity,
     target: Entity,
-    attack_index: usize,  // Index into the attacker's attack children
+    attack_id: crate::components::AttackId,
+    cooldown: f32,
     hit: bool,
     effects_to_apply: Vec<(Entity, EffectApplication)>,
 }
@@ -31,13 +33,9 @@ enum EffectApplication {
 
 /// System to update all attack cooldowns.
 ///
-/// WHY A SEPARATE SYSTEM?
-/// Separating cooldown updates from attack execution:
-/// - Makes each system simpler and easier to understand
-/// - Allows different scheduling if needed (e.g., FixedUpdate for cooldowns)
-/// - Follows single-responsibility principle
-///
-/// This system runs every frame and ticks down all attack cooldowns.
+/// This ticks down the cooldown on all active AttackInstance entities.
+/// When an AttackInstance's cooldown reaches 0, the cleanup_finished_attacks
+/// system will despawn it, allowing the soldier to attack again.
 pub fn update_attack_cooldowns(
     time: Res<Time>,
     mut attacks: Query<&mut AttackInstance>,
@@ -49,34 +47,47 @@ pub fn update_attack_cooldowns(
     }
 }
 
+/// System to despawn AttackInstance entities whose cooldown has finished.
+///
+/// WHY A SEPARATE SYSTEM?
+/// - Keeps cooldown ticking separate from entity despawning
+/// - Clear single responsibility: this system cleans up finished attacks
+/// - When an AttackInstance is despawned, the soldier has no children,
+///   which signals they're ready to attack again
+pub fn cleanup_finished_attacks(
+    mut commands: Commands,
+    attacks: Query<(Entity, &AttackInstance)>,
+) {
+    for (entity, attack) in attacks.iter() {
+        if attack.is_finished() {
+            // Despawn this attack instance - soldier is now free to attack again
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
 /// Main attack system - processes attacks and applies effects.
 ///
-/// This system:
-/// 1. Finds soldiers who have ready attacks
-/// 2. Picks a random ready attack for each soldier
-/// 3. Picks a random enemy target
-/// 4. Rolls for hit/miss based on attack's hit_chance
-/// 5. Applies appropriate effects (on_success, on_fail, on_use)
-/// 6. Triggers DamageEvent for audio feedback
+/// NEW DESIGN:
+/// A soldier can only attack if they have NO AttackInstance children.
+/// When they attack:
+/// 1. Pick a random attack from soldier.available_attacks
+/// 2. Spawn an AttackInstance child with that attack's cooldown
+/// 3. While the child exists, the soldier is "busy" and cannot attack
+/// 4. When the cooldown finishes, cleanup_finished_attacks despawns it
+/// 5. Soldier can now attack again
 ///
-/// PARAMSET FOR QUERY CONFLICTS:
-/// Both our soldier query and health mutation query access the Health component.
-/// Bevy's borrow checker prevents this at runtime. ParamSet solves this by
-/// ensuring only one query is active at a time - you call .p0() or .p1()
-/// to access each query, and can't use both simultaneously.
+/// This ensures a soldier can only have ONE attack active at a time.
 pub fn attack_system(
-    // ParamSet wraps conflicting queries. We can only access one at a time.
-    // p0: Read soldiers with their children and health
-    // p1: Mutate health for applying damage/healing
+    // Query soldiers - now includes the Soldier component to access available_attacks
+    // Option<&Children> because soldiers with no active attack have no children
     mut param_set: ParamSet<(
-        Query<(Entity, &Health, &Team, &Children), With<Soldier>>,
+        Query<(Entity, &Soldier, &Health, &Team, Option<&Children>)>,
         Query<&mut Health>,
     )>,
-    // Query attack instances (children of soldiers) - no conflict
-    mut attacks: Query<&mut AttackInstance>,
     // Attack definitions database
     attack_db: Res<AttackDatabase>,
-    // Commands for triggering events
+    // Commands for spawning AttackInstance and triggering events
     mut commands: Commands,
 ) {
     let mut rng = rand::thread_rng();
@@ -84,23 +95,29 @@ pub fn attack_system(
     // -------------------------------------------------------------------------
     // PHASE 1: Collect soldier data using p0() (read-only soldier query)
     // -------------------------------------------------------------------------
-    // ParamSet requires us to explicitly access queries one at a time.
-    // We use p0() to access the soldier query, collect all data we need,
-    // then the borrow ends when soldier_data is created.
+    // We collect:
+    // - Entity, current HP, team, available attacks
+    // - Whether they have any children (active attack = busy)
 
-    let soldier_data: Vec<(Entity, i32, bool, Vec<Entity>)> = param_set
+    let soldier_data: Vec<(Entity, i32, bool, Vec<crate::components::AttackId>, bool)> = param_set
         .p0()
         .iter()
-        .map(|(entity, health, team, children)| {
-            // Collect children as Vec<Entity> so we don't hold the borrow
-            let child_entities: Vec<Entity> = children.iter().collect();
-            (entity, health.current, team.is_player, child_entities)
+        .map(|(entity, soldier, health, team, children)| {
+            // has_active_attack: true if soldier has any children (AttackInstance)
+            let has_active_attack = children.map(|c| !c.is_empty()).unwrap_or(false);
+            (
+                entity,
+                health.current,
+                team.is_player,
+                soldier.available_attacks.clone(),
+                has_active_attack,
+            )
         })
         .collect();
 
     // Check if game is still ongoing
-    let player_alive = soldier_data.iter().any(|(_, hp, is_player, _)| *hp > 0 && *is_player);
-    let enemy_alive = soldier_data.iter().any(|(_, hp, is_player, _)| *hp > 0 && !*is_player);
+    let player_alive = soldier_data.iter().any(|(_, hp, is_player, _, _)| *hp > 0 && *is_player);
+    let enemy_alive = soldier_data.iter().any(|(_, hp, is_player, _, _)| *hp > 0 && !*is_player);
 
     if !player_alive || !enemy_alive {
         return; // Game over, stop combat
@@ -109,39 +126,29 @@ pub fn attack_system(
     // -------------------------------------------------------------------------
     // PHASE 2: Determine attacks to execute
     // -------------------------------------------------------------------------
-    // Now we work with our collected data (no longer borrowing the query)
     let mut pending_attacks: Vec<PendingAttack> = Vec::new();
 
-    for (soldier_entity, soldier_hp, is_player, children) in &soldier_data {
+    for (soldier_entity, soldier_hp, is_player, available_attacks, has_active_attack) in &soldier_data {
         // Skip dead soldiers
         if *soldier_hp <= 0 {
             continue;
         }
 
-        // Find all ready attacks for this soldier
-        let ready_attacks: Vec<(usize, Entity)> = children
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, &child_entity)| {
-                if let Ok(attack) = attacks.get(child_entity) {
-                    if attack.is_ready() {
-                        return Some((idx, child_entity));
-                    }
-                }
-                None
-            })
-            .collect();
-
-        if ready_attacks.is_empty() {
+        // Skip soldiers who already have an active attack (busy)
+        if *has_active_attack {
             continue;
         }
 
-        // Pick a random ready attack
-        let (attack_index, attack_entity) = ready_attacks[rng.gen_range(0..ready_attacks.len())];
+        // Skip soldiers with no attacks
+        if available_attacks.is_empty() {
+            continue;
+        }
+
+        // Pick a random attack from available attacks
+        let attack_id = available_attacks[rng.gen_range(0..available_attacks.len())];
 
         // Get the attack definition
-        let attack_instance = attacks.get(attack_entity).unwrap();
-        let attack_def = match attack_db.get(attack_instance.attack_id) {
+        let attack_def = match attack_db.get(attack_id) {
             Some(def) => def,
             None => continue,
         };
@@ -149,8 +156,8 @@ pub fn attack_system(
         // Find a random living enemy
         let enemies: Vec<Entity> = soldier_data
             .iter()
-            .filter(|(_, hp, enemy_is_player, _)| *hp > 0 && *enemy_is_player != *is_player)
-            .map(|(entity, _, _, _)| *entity)
+            .filter(|(_, hp, enemy_is_player, _, _)| *hp > 0 && *enemy_is_player != *is_player)
+            .map(|(entity, _, _, _, _)| *entity)
             .collect();
 
         if enemies.is_empty() {
@@ -188,33 +195,27 @@ pub fn attack_system(
         pending_attacks.push(PendingAttack {
             attacker: *soldier_entity,
             target,
-            attack_index,
+            attack_id,
+            cooldown: attack_def.cooldown,
             hit,
             effects_to_apply,
         });
     }
 
     // -------------------------------------------------------------------------
-    // PHASE 3: Start cooldowns (uses attacks query, not ParamSet)
+    // PHASE 3: Spawn AttackInstance children for each attacker
     // -------------------------------------------------------------------------
+    // This "locks" the soldier until the cooldown finishes and the instance
+    // is despawned by cleanup_finished_attacks.
     for pending in &pending_attacks {
-        // Find the attack child and start its cooldown
-        if let Some((_, _, _, children)) = soldier_data.iter().find(|(e, _, _, _)| *e == pending.attacker) {
-            if let Some(&attack_entity) = children.get(pending.attack_index) {
-                if let Ok(mut attack) = attacks.get_mut(attack_entity) {
-                    if let Some(def) = attack_db.get(attack.attack_id) {
-                        attack.start_cooldown(def.cooldown);
-                    }
-                }
-            }
-        }
+        commands.entity(pending.attacker).with_children(|parent| {
+            parent.spawn(AttackInstance::new(pending.attack_id, pending.cooldown));
+        });
     }
 
     // -------------------------------------------------------------------------
     // PHASE 4: Apply effects using p1() (mutable health query)
     // -------------------------------------------------------------------------
-    // Now we switch to p1() to mutate health. This is safe because we're
-    // no longer using p0() (the soldier query).
     for pending in pending_attacks {
         for (target_entity, effect) in pending.effects_to_apply {
             match effect {
