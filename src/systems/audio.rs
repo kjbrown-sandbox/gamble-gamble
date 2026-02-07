@@ -3,7 +3,7 @@
 // This system demonstrates Bevy 0.18's observer pattern for events.
 // Observers are functions that run in response to triggered events.
 
-use bevy::prelude::*;
+use bevy::{audio::Volume, prelude::*};
 use crate::components::DamageEvent;
 
 /// Resource that holds our pre-loaded audio assets.
@@ -64,28 +64,47 @@ pub fn setup_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
 /// - Also provides metadata about the trigger
 pub fn on_damage(
     // On<DamageEvent> is the trigger wrapper. It contains the DamageEvent data.
-    // The underscore prefix means we're not using this variable (avoiding warnings).
-    _trigger: On<DamageEvent>,
+    trigger: On<DamageEvent>,
     // We need Commands to spawn the audio player entity
     mut commands: Commands,
     // We need the GameAudio resource to get the sound handle
     audio: Res<GameAudio>,
 ) {
-    // Spawn an entity with AudioPlayer component to play the sound.
+    // Access the event data from the trigger.
+    // On<T> implements Deref, so we can use * to get a reference to the inner event.
+    let damage = trigger.amount;
+
+    // Calculate volume based on damage amount.
+    // Our damage range is 10-20 (from attack_system), so we normalize it:
+    // - 10 damage = minimum volume (0.3)
+    // - 20 damage = maximum volume (1.0)
+    //
+    // The formula: volume = min_vol + (damage - min_dmg) / (max_dmg - min_dmg) * (max_vol - min_vol)
+    // Simplified for our range:
+    const MIN_DAMAGE: f32 = 10.0;
+    const MAX_DAMAGE: f32 = 20.0;
+    const MIN_VOLUME: f32 = 0.3;  // Quiet but audible for small hits
+    const MAX_VOLUME: f32 = 1.0;  // Full volume for big hits
+
+    // Normalize damage to 0.0-1.0 range, then scale to volume range
+    let normalized = (damage as f32 - MIN_DAMAGE) / (MAX_DAMAGE - MIN_DAMAGE);
+    // Clamp to handle any damage values outside expected range
+    let normalized = normalized.clamp(0.0, 1.0);
+    let volume_level = MIN_VOLUME + normalized * (MAX_VOLUME - MIN_VOLUME);
+
+    // Spawn an entity with AudioPlayer AND PlaybackSettings components.
     //
     // In Bevy 0.18, audio is played by spawning an entity with AudioPlayer.
-    // The entity is automatically cleaned up when playback completes.
+    // Adding PlaybackSettings lets us customize volume, speed, looping, etc.
     //
-    // We clone the handle because Handle is cheap to clone (it's just an ID)
-    // and we need to keep the original in our resource for future use.
-    commands.spawn(AudioPlayer::new(audio.damage_sound.clone()));
-
-    // Note: We could access the event data if needed:
-    // let event = &*_trigger;  // or _trigger.event()
-    // println!("Entity {:?} took {} damage", event.target, event.amount);
+    // PlaybackSettings::DESPAWN is a preset that auto-removes the entity
+    // when playback completes, preventing memory leaks from accumulating
+    // audio entities.
     //
-    // You could use this to:
-    // - Play spatial audio at the entity's position
-    // - Vary volume based on damage amount
-    // - Select different sounds for small vs big hits
+    // Volume::Linear(x) where x is 0.0 (silent) to 1.0 (full volume).
+    // There's also Volume::Decibels for dB-based control.
+    commands.spawn((
+        AudioPlayer::new(audio.damage_sound.clone()),
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(volume_level)),
+    ));
 }
