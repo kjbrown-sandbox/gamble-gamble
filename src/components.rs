@@ -101,6 +101,125 @@ pub struct HealthDisplay {
 #[derive(Component)]
 pub struct GameOverText;
 
+/// Animation components - track animation state for sprite-based entities
+/// 
+/// AnimationType enum - defines which animation to play
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AnimationType {
+    JumpIdle,      // Idle/waiting animation
+    Attack,        // Standard attack animation
+    MoveSmallJump, // Small jump attack animation
+    Hurt,          // Taking damage animation
+    Death,         // Death animation
+}
+
+/// AnimationState - tracks current animation frame and timing
+#[derive(Component)]
+pub struct AnimationState {
+    pub animation_type: AnimationType,
+    pub current_frame: usize,
+    pub frame_timer: f32,
+    pub frame_duration: f32, // Seconds per frame
+    pub total_frames: usize,
+    pub looping: bool,       // Whether animation should loop
+    pub finished: bool,      // True when non-looping animation completes
+}
+
+impl AnimationState {
+    pub fn new(animation_type: AnimationType, total_frames: usize, frame_duration: f32, looping: bool) -> Self {
+        AnimationState {
+            animation_type,
+            current_frame: 0,
+            frame_timer: 0.0,
+            frame_duration,
+            total_frames,
+            looping,
+            finished: false,
+        }
+    }
+
+    /// Update animation timer and advance frame if needed
+    /// Returns true if a non-looping animation just finished this frame
+    pub fn update(&mut self, delta_time: f32) -> bool {
+        if self.finished {
+            return false;
+        }
+
+        self.frame_timer += delta_time;
+
+        if self.frame_timer >= self.frame_duration {
+            self.frame_timer = 0.0;
+            self.current_frame += 1;
+
+            if self.current_frame >= self.total_frames {
+                if self.looping {
+                    self.current_frame = 0;
+                } else {
+                    self.current_frame = self.total_frames - 1;
+                    self.finished = true;
+                    return true; // Animation just finished
+                }
+            }
+        }
+        false
+    }
+
+    /// Change to a different animation type, resetting all state.
+    ///
+    /// ANIMATION FRAME COUNTS (from sprite sheets):
+    /// - JumpIdle: 6 frames, looping
+    /// - Attack: 5 frames, non-looping
+    /// - MoveSmallJump: 6 frames, non-looping
+    /// - Hurt: 3 frames, non-looping
+    /// - Death: 6 frames, non-looping
+    pub fn change_to(&mut self, animation_type: AnimationType) {
+        // Don't restart if already playing this animation
+        if self.animation_type == animation_type && !self.finished {
+            return;
+        }
+
+        self.animation_type = animation_type;
+        self.current_frame = 0;
+        self.frame_timer = 0.0;
+        self.finished = false;
+
+        // Set frame count and looping based on animation type
+        match animation_type {
+            AnimationType::JumpIdle => {
+                self.total_frames = 6;
+                self.frame_duration = 0.1;
+                self.looping = true;
+            }
+            AnimationType::Attack => {
+                self.total_frames = 5;
+                self.frame_duration = 0.08; // Faster attack animation
+                self.looping = false;
+            }
+            AnimationType::MoveSmallJump => {
+                self.total_frames = 6;
+                self.frame_duration = 0.08;
+                self.looping = false;
+            }
+            AnimationType::Hurt => {
+                self.total_frames = 3;
+                self.frame_duration = 0.1;
+                self.looping = false;
+            }
+            AnimationType::Death => {
+                self.total_frames = 6;
+                self.frame_duration = 0.15; // Slower death for dramatic effect
+                self.looping = false;
+            }
+        }
+    }
+}
+
+/// Dying component - marks entities that are playing death animation.
+/// Prevents them from being despawned until animation completes.
+/// Added when health <= 0, removed after death animation finishes.
+#[derive(Component)]
+pub struct Dying;
+
 // =============================================================================
 // ATTACK SYSTEM
 // =============================================================================

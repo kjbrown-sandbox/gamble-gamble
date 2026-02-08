@@ -20,3 +20,20 @@ impl Default for GameStatus {
         }
     }
 }
+
+/// SpriteSheets resource - stores handles to loaded sprite sheets and their layouts
+/// This prevents loading the same assets multiple times
+#[derive(Resource)]
+pub struct SpriteSheets {
+    pub slime_jump_idle: Handle<Image>,
+    pub slime_attack: Handle<Image>,
+    pub slime_move_small_jump: Handle<Image>,
+    pub slime_hurt: Handle<Image>,
+    pub slime_death: Handle<Image>,
+    
+    pub jump_idle_layout: Handle<TextureAtlasLayout>,
+    pub attack_layout: Handle<TextureAtlasLayout>,
+    pub move_small_jump_layout: Handle<TextureAtlasLayout>,
+    pub hurt_layout: Handle<TextureAtlasLayout>,
+    pub death_layout: Handle<TextureAtlasLayout>,
+}

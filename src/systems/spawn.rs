@@ -9,7 +9,9 @@ use bevy::prelude::*;
 use crate::components::{
     Health, Team, Soldier, HealthDisplay, GameOverText,
     AttackDatabase, AttackDefinition, AttackEffects, Effect, AttackId,
+    AnimationState, AnimationType,
 };
+use crate::resources::SpriteSheets;
 
 /// Initialize the attack database with all available attacks.
 ///
@@ -91,22 +93,73 @@ pub fn setup_attacks(mut commands: Commands) {
     commands.insert_resource(db);
 }
 
+/// Load sprite sheets and create texture atlas layouts
+/// This must run before spawn_soldiers so assets are available
+pub fn load_sprite_sheets(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+) {
+    // Load all sprite sheet images
+    let slime_jump_idle = asset_server.load("sprites/slimes/Jump-Idle/Slime_Jump_Spritesheet.png");
+    let slime_attack = asset_server.load("sprites/slimes/Attack/Slime_Attack_Spritesheet.png");
+    let slime_move_small_jump = asset_server.load("sprites/slimes/Move-Small Jump/Slime_Move-Small Jump_Spritesheet.png");
+    let slime_hurt = asset_server.load("sprites/slimes/Hurt/Slime_Hurt_Spritesheet.png");
+    let slime_death = asset_server.load("sprites/slimes/Death/Slime_Death_Spritesheet.png");
+
+    // Create texture atlas layouts (define frame grid)
+    // Each sprite frame is 60x99 pixels
+    // Jump-Idle: 6 frames in a row
+    let jump_idle_layout = texture_atlas_layouts.add(
+        TextureAtlasLayout::from_grid(UVec2::new(60, 99), 6, 1, None, None)
+    );
+    
+    // Attack: 5 frames
+    let attack_layout = texture_atlas_layouts.add(
+        TextureAtlasLayout::from_grid(UVec2::new(60, 99), 5, 1, None, None)
+    );
+    
+    // Move-Small Jump: 6 frames
+    let move_small_jump_layout = texture_atlas_layouts.add(
+        TextureAtlasLayout::from_grid(UVec2::new(60, 99), 6, 1, None, None)
+    );
+    
+    // Hurt: 3 frames
+    let hurt_layout = texture_atlas_layouts.add(
+        TextureAtlasLayout::from_grid(UVec2::new(60, 99), 3, 1, None, None)
+    );
+    
+    // Death: 6 frames
+    let death_layout = texture_atlas_layouts.add(
+        TextureAtlasLayout::from_grid(UVec2::new(60, 99), 6, 1, None, None)
+    );
+
+    // Store in resource for easy access
+    commands.insert_resource(SpriteSheets {
+        slime_jump_idle,
+        slime_attack,
+        slime_move_small_jump,
+        slime_hurt,
+        slime_death,
+        jump_idle_layout,
+        attack_layout,
+        move_small_jump_layout,
+        hurt_layout,
+        death_layout,
+    });
+}
+
 /// Spawn system - runs once at startup to create the initial game state.
 /// This is a Startup system, so it runs exactly once when the app starts.
 ///
-/// IMPORTANT: This must run AFTER setup_attacks so the AttackDatabase exists.
+/// IMPORTANT: This must run AFTER setup_attacks and load_sprite_sheets.
 /// We ensure this with .chain() in main.rs.
 pub fn spawn_soldiers(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    sprite_sheets: Res<SpriteSheets>,
 ) {
     // Spawn camera first - required for rendering
     commands.spawn(Camera2d);
-
-    // Create reusable mesh and material for both soldiers
-    let soldier_mesh = meshes.add(Circle::new(30.0));
-    let white_material = materials.add(ColorMaterial::from(Color::WHITE));
 
     // Define which attacks each soldier gets (by AttackId index)
     // Player gets: Basic Attack (0), Power Strike (1), Healing Strike (3)
@@ -114,34 +167,42 @@ pub fn spawn_soldiers(
     // Enemy gets: Basic Attack (0), Reckless Slam (2)
     let enemy_attacks = vec![AttackId(0), AttackId(2)];
 
-    // Spawn player soldier (left side)
-    //
-    // ATTACK SYSTEM DESIGN:
-    // The Soldier component now stores available_attacks - a list of AttackIds
-    // the soldier can use. No AttackInstance children are spawned upfront.
-    // When the soldier attacks:
-    // 1. Combat system picks a random attack from available_attacks
-    // 2. Spawns a temporary AttackInstance child with that attack's cooldown
-    // 3. While child exists, soldier cannot attack (busy)
-    // 4. When cooldown expires, child is despawned
-    // 5. Soldier can now attack again
+    // Spawn player soldier (left side) with Jump-Idle animation
     let player_entity = commands.spawn((
         Soldier { available_attacks: player_attacks },
         Health::new(100),
         Team { is_player: true },
-        Transform::default().with_translation(Vec3::new(-150.0, 0.0, 0.0)),
-        Mesh2d(soldier_mesh.clone()),
-        MeshMaterial2d(white_material.clone()),
+        Sprite {
+            image: sprite_sheets.slime_jump_idle.clone(),
+            texture_atlas: Some(TextureAtlas {
+                layout: sprite_sheets.jump_idle_layout.clone(),
+                index: 0,
+            }),
+            custom_size: Some(Vec2::new(120.0, 198.0)), // 2x scale from 60x99
+            ..default()
+        },
+        Transform::from_translation(Vec3::new(-150.0, 0.0, 0.0)),
+        AnimationState::new(AnimationType::JumpIdle, 6, 0.1, true),
     )).id();
 
-    // Spawn enemy soldier (right side)
+    // Spawn enemy soldier (right side) with Jump-Idle animation
+    // Note: We'll flip this horizontally in a moment
     let enemy_entity = commands.spawn((
         Soldier { available_attacks: enemy_attacks },
         Health::new(100),
         Team { is_player: false },
-        Transform::default().with_translation(Vec3::new(150.0, 0.0, 0.0)),
-        Mesh2d(soldier_mesh),
-        MeshMaterial2d(white_material),
+        Sprite {
+            image: sprite_sheets.slime_jump_idle.clone(),
+            texture_atlas: Some(TextureAtlas {
+                layout: sprite_sheets.jump_idle_layout.clone(),
+                index: 0,
+            }),
+            custom_size: Some(Vec2::new(120.0, 198.0)), // 2x scale from 60x99
+            flip_x: true, // Flip enemy horizontally
+            ..default()
+        },
+        Transform::from_translation(Vec3::new(150.0, 0.0, 0.0)),
+        AnimationState::new(AnimationType::JumpIdle, 6, 0.1, true),
     )).id();
 
     // Create a UI root node (invisible container for all UI)

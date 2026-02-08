@@ -9,8 +9,9 @@
 
 use bevy::prelude::*;
 use crate::components::{
-    Health, Team, Soldier, DamageEvent,
-    AttackDatabase, AttackInstance, Effect,
+    Health, Team, Soldier, DamageEvent, Dying,
+    AttackDatabase, AttackInstance, AttackId, Effect,
+    AnimationState, AnimationType,
 };
 use rand::Rng;
 
@@ -18,10 +19,8 @@ use rand::Rng;
 /// We collect these first, then apply them, to avoid borrow conflicts.
 struct PendingAttack {
     attacker: Entity,
-    target: Entity,
-    attack_id: crate::components::AttackId,
+    attack_id: AttackId,
     cooldown: f32,
-    hit: bool,
     effects_to_apply: Vec<(Entity, EffectApplication)>,
 }
 
@@ -81,10 +80,13 @@ pub fn cleanup_finished_attacks(
 pub fn attack_system(
     // Query soldiers - now includes the Soldier component to access available_attacks
     // Option<&Children> because soldiers with no active attack have no children
+    // Without<Dying> excludes soldiers who are playing their death animation
     mut param_set: ParamSet<(
-        Query<(Entity, &Soldier, &Health, &Team, Option<&Children>)>,
+        Query<(Entity, &Soldier, &Health, &Team, Option<&Children>), Without<Dying>>,
         Query<&mut Health>,
     )>,
+    // Separate query for animations to avoid ParamSet complexity
+    mut animation_query: Query<&mut AnimationState>,
     // Attack definitions database
     attack_db: Res<AttackDatabase>,
     // Commands for spawning AttackInstance and triggering events
@@ -194,23 +196,39 @@ pub fn attack_system(
 
         pending_attacks.push(PendingAttack {
             attacker: *soldier_entity,
-            target,
             attack_id,
             cooldown: attack_def.cooldown,
-            hit,
             effects_to_apply,
         });
     }
 
     // -------------------------------------------------------------------------
-    // PHASE 3: Spawn AttackInstance children for each attacker
+    // PHASE 3: Spawn AttackInstance children and trigger attack animations
     // -------------------------------------------------------------------------
     // This "locks" the soldier until the cooldown finishes and the instance
     // is despawned by cleanup_finished_attacks.
+    //
+    // ATTACK ANIMATION MAPPING:
+    // - Basic Attack (0), Healing Strike (3) → Attack animation
+    // - Power Strike (1) → MoveSmallJump animation
+    // - Reckless Slam (2) → JumpIdle animation (the "biggest" attack)
     for pending in &pending_attacks {
+        // Spawn the AttackInstance child
         commands.entity(pending.attacker).with_children(|parent| {
             parent.spawn(AttackInstance::new(pending.attack_id, pending.cooldown));
         });
+
+        // Trigger the appropriate attack animation
+        if let Ok(mut anim_state) = animation_query.get_mut(pending.attacker) {
+            let animation_type = match pending.attack_id.0 {
+                0 => AnimationType::Attack,        // Basic Attack
+                1 => AnimationType::MoveSmallJump, // Power Strike
+                2 => AnimationType::JumpIdle,      // Reckless Slam (biggest)
+                3 => AnimationType::Attack,        // Healing Strike
+                _ => AnimationType::Attack,        // Default fallback
+            };
+            anim_state.change_to(animation_type);
+        }
     }
 
     // -------------------------------------------------------------------------
