@@ -410,3 +410,68 @@ pub struct DamageEvent {
     pub amount: i32,
 }
 
+// =============================================================================
+// DAMAGE POPUP COMPONENT
+// =============================================================================
+// Damage popups are floating numbers that appear when entities take damage.
+// They use world-space text (Text2d) rather than UI text, so they exist
+// in the game world and can be positioned relative to the damaged entity.
+
+/// DamagePopup - component for floating damage numbers.
+///
+/// When an entity takes damage, we spawn a Text2d entity with this component.
+/// The popup floats upward and fades out over time, then despawns.
+///
+/// KEY CONCEPTS:
+/// - Uses Timer for lifecycle management (how long before despawn)
+/// - Uses Timer::fraction() for animation progress (returns 0.0 → 1.0)
+/// - Uses lerp (linear interpolation) to smoothly animate position and opacity
+///
+/// WHAT IS LERP?
+/// Lerp stands for "linear interpolation". Given two values and a percentage,
+/// it returns the value at that percentage between them.
+///   lerp(start, end, 0.0) = start
+///   lerp(start, end, 0.5) = halfway between start and end
+///   lerp(start, end, 1.0) = end
+///
+/// Combined with Timer::fraction(), this creates smooth animations:
+///   y = start_y + fraction * float_distance
+/// As fraction goes 0.0→1.0, y smoothly increases by float_distance.
+#[derive(Component)]
+pub struct DamagePopup {
+    /// Timer controlling popup lifetime. When finished, popup despawns.
+    pub timer: Timer,
+
+    /// Starting Y position (captured when spawned at damaged entity's location).
+    pub start_y: f32,
+
+    /// How far up the popup floats over its lifetime (in world units).
+    pub float_distance: f32,
+}
+
+// =============================================================================
+// MENU UI COMPONENTS
+// =============================================================================
+// These marker components identify UI elements so we can query and despawn them.
+// Using marker components (structs with no fields) is a common Bevy pattern.
+
+/// Marker component for the main menu UI container.
+/// Used to despawn all menu UI when exiting the Menu state.
+#[derive(Component)]
+pub struct MenuUI;
+
+/// Marker component for the "Fight!" button.
+/// Used to detect clicks and transition to Battle state.
+#[derive(Component)]
+pub struct FightButton;
+
+/// Marker component for the game over UI container.
+/// Used to despawn game over UI when returning to menu.
+#[derive(Component)]
+pub struct GameOverUI;
+
+/// Marker component for the "Play Again" button.
+/// Used to detect clicks and transition back to Menu state.
+#[derive(Component)]
+pub struct PlayAgainButton;
+

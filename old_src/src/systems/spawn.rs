@@ -1,9 +1,24 @@
-// systems/spawn.rs - Spawning soldiers, attacks, and UI
+// systems/spawn.rs - Spawning camera, soldiers, attacks, and UI
 //
-// This module handles initial game setup:
-// 1. Initialize the AttackDatabase resource with attack definitions
-// 2. Spawn soldiers with attack children
-// 3. Create UI elements
+// This module handles:
+// 1. Camera setup (runs on global Startup, before any state)
+// 2. Attack database initialization (runs on global Startup)
+// 3. Sprite sheet loading (runs on global Startup)
+// 4. Soldier and UI spawning (runs on OnEnter Battle state)
+//
+// WHY SEPARATE CAMERA FROM SOLDIERS?
+// The camera should exist regardless of game state - we need it for both
+// the menu and the battle. But soldiers should only exist during battle.
+//
+// With Bevy's States system:
+// - Startup systems: Run once when app starts, before any state
+// - OnEnter(State): Run once when entering that state
+// - OnExit(State): Run once when leaving that state
+//
+// By putting camera in Startup and soldiers in OnEnter(Battle), we get:
+// - Camera always available (menu and battle can both render)
+// - Soldiers only spawned when battle starts
+// - Soldiers cleaned up when battle ends (via OnExit)
 
 use bevy::prelude::*;
 use crate::components::{
@@ -149,17 +164,44 @@ pub fn load_sprite_sheets(
     });
 }
 
-/// Spawn system - runs once at startup to create the initial game state.
-/// This is a Startup system, so it runs exactly once when the app starts.
+/// Spawn the 2D camera.
+///
+/// This runs on global Startup (not tied to any state) because the camera
+/// should exist for the entire lifetime of the app. Both the menu and battle
+/// states need a camera to render.
+///
+/// WHY SEPARATE FROM SOLDIERS?
+/// Previously, camera and soldiers were spawned together. But with States:
+/// - Menu state needs the camera (to show the menu button)
+/// - Battle state needs the camera AND soldiers
+/// - GameOver state needs the camera (to show the result)
+///
+/// The camera is constant; soldiers come and go with battle state.
+/// Separating them lets us spawn/despawn soldiers without touching the camera.
+pub fn spawn_camera(mut commands: Commands) {
+    // Camera2d is Bevy's 2D camera component
+    // It handles orthographic projection, rendering order, etc.
+    commands.spawn(Camera2d);
+}
+
+/// Spawn soldiers and battle UI.
+///
+/// This runs on OnEnter(GameState::Battle), meaning it executes once when
+/// transitioning INTO the Battle state. This is different from Startup
+/// (which runs once at app launch) or Update (which runs every frame).
+///
+/// OnEnter is perfect for spawning because:
+/// - We only want to spawn soldiers once per battle
+/// - We want a fresh set of soldiers each time we enter Battle
+/// - The spawn happens at a predictable time (state transition)
 ///
 /// IMPORTANT: This must run AFTER setup_attacks and load_sprite_sheets.
-/// We ensure this with .chain() in main.rs.
+/// Since those run on global Startup and this runs on OnEnter(Battle),
+/// and Battle can only be entered after Startup completes, ordering is guaranteed.
 pub fn spawn_soldiers(
     mut commands: Commands,
     sprite_sheets: Res<SpriteSheets>,
 ) {
-    // Spawn camera first - required for rendering
-    commands.spawn(Camera2d);
 
     // Define which attacks each soldier gets (by AttackId index)
     // Player gets: Basic Attack (0), Power Strike (1), Healing Strike (3)
