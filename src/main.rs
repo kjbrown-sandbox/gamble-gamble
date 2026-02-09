@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::animation::{AnimationState, AnimationType, SpriteSheets};
+use crate::animation::{AnimationType, SpriteSheets};
 
 fn main() {
     App::new()
