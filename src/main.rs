@@ -19,3 +19,4 @@ fn spawn_slime(mut commands: Commands) {
 }
 
 mod animation;
+mod move_to_target;
