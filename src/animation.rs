@@ -1,4 +1,4 @@
-use bevy::{animation, prelude::*};
+use bevy::prelude::*;
 
 pub struct AnimationPlugin;
 
@@ -9,6 +9,7 @@ impl Plugin for AnimationPlugin {
     }
 }
 
+#[require(AnimationState, Sprite)]
 #[derive(Component, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum AnimationType {
     SlimeJumpIdle,
@@ -18,7 +19,7 @@ pub enum AnimationType {
     SlimeDeath,
 }
 
-#[derive(Component)]
+#[derive(Component, Default)]
 pub struct AnimationState {
     //  pub animation_type: AnimationType,
     pub frame_index: usize,
@@ -175,6 +176,19 @@ pub fn switch_animation_system(
     }
 }
 
+// pub fn set_initial_sprite_and_animation_system(
+//     mut query: Query<
+//         (Entity),
+//         (
+//             Added<AnimationType>,
+//             Without<Sprite>,
+//             Without<AnimationState>,
+//         ),
+//     >,
+//     sprite_sheets: Res<SpriteSheets>,
+// ) {
+// }
+
 pub fn load_sprite_sheets(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -184,7 +198,7 @@ pub fn load_sprite_sheets(
     let slime_jump_idle = asset_server.load("sprites/slimes/Jump-Idle/Slime_Jump_Spritesheet.png");
     let slime_attack = asset_server.load("sprites/slimes/Attack/Slime_Attack_Spritesheet.png");
     let slime_move_small_jump =
-        asset_server.load("sprites/slimes/Move-Small Jump/Slime_Move-Small Jump_Spritesheet.png");
+        asset_server.load("sprites/slimes/Move-Small Jump/Slime_Move_Spritesheet.png");
     let slime_hurt = asset_server.load("sprites/slimes/Hurt/Slime_Hurt_Spritesheet.png");
     let slime_death = asset_server.load("sprites/slimes/Death/Slime_Death_Spritesheet.png");
 
