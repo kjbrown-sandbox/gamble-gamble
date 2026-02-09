@@ -1,39 +1,59 @@
-use bevy::prelude::*;
-// use crate::components::{AnimationState, AnimationType, DamageEvent, Dying, Health, Soldier};
-// use crate::resources::SpriteSheets;
+use bevy::{animation, prelude::*};
 
-/* Animation needs to be handle a few things:
-- Updating the sprite frames
-- Allow the ability to loop an animation
-- Probably needs a way to know when it's done playing
-- Perhaps fire an event when done animating?
+pub struct AnimationPlugin;
 
-*/
+impl Plugin for AnimationPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(Startup, load_sprite_sheets)
+            .add_systems(Update, (switch_animation_system, animation_system));
+    }
+}
+
+#[derive(Component)]
+pub enum AnimationType {
+    SlimeJumpIdle,
+    SlimeAttack,
+    SlimeMoveSmallJump,
+    SlimeHurt,
+    SlimeDeath,
+}
 
 #[derive(Component)]
 pub struct AnimationState {
     //  pub animation_type: AnimationType,
-    pub current_frame: usize,
+    pub frame_index: usize,
     pub frame_timer: f32,
-    pub frame_duration: f32, // milliseconds per frame
+    pub frame_duration: f32, // seconds per frame
     total_frames: usize,
     pub looping: bool,  // Whether animation should loop
     pub finished: bool, // True when non-looping animation completes
 }
 
+/// This prevents loading the same assets multiple times
+#[derive(Resource)]
+pub struct SpriteSheets {
+    pub slime_jump_idle: Handle<Image>,
+    pub slime_attack: Handle<Image>,
+    pub slime_move_small_jump: Handle<Image>,
+    pub slime_hurt: Handle<Image>,
+    pub slime_death: Handle<Image>,
+
+    pub jump_idle_layout: Handle<TextureAtlasLayout>,
+    pub attack_layout: Handle<TextureAtlasLayout>,
+    pub move_small_jump_layout: Handle<TextureAtlasLayout>,
+    pub hurt_layout: Handle<TextureAtlasLayout>,
+    pub death_layout: Handle<TextureAtlasLayout>,
+}
+
 impl AnimationState {
-    pub fn new(
-        frame_duration: f32,
-        spritesheet_layout: &TextureAtlasLayout,
-        looping: bool,
-    ) -> Self {
+    pub fn new(frame_duration: f32, total_frames: usize, looping: bool) -> Self {
         AnimationState {
-            current_frame: 0,
+            frame_index: 0,
             frame_timer: 0.0,
             frame_duration,
             looping,
             finished: false,
-            total_frames: spritesheet_layout.len(),
+            total_frames,
         }
     }
 
@@ -47,16 +67,166 @@ impl AnimationState {
         // Check if it's time to advance to the next frame
         if self.frame_timer >= self.frame_duration {
             self.frame_timer -= self.frame_duration;
-            self.current_frame += 1;
+            self.frame_index += 1;
 
-            if self.current_frame >= self.total_frames {
+            if self.frame_index >= self.total_frames {
                 if self.looping {
-                    self.current_frame = 0; // Loop back to first frame
+                    self.frame_index = 0; // Loop back to first frame
                 } else {
-                    self.current_frame = self.total_frames - 1; // Stay on last frame
+                    self.frame_index = self.total_frames - 1; // Stay on last frame
                     self.finished = true;
                 }
             }
         }
     }
+}
+
+pub fn animation_system(mut query: Query<(&mut AnimationState, &mut Sprite)>, time: Res<Time>) {
+    for (mut anim_state, mut sprite) in query.iter_mut() {
+        anim_state.update(time.delta_secs());
+
+        // Update the sprite's index to match the current animation frame
+        if let Some(ref mut atlas) = sprite.texture_atlas {
+            atlas.index = anim_state.frame_index;
+        }
+    }
+}
+
+// This is what allows an entity to change its animation and sprite
+pub fn switch_animation_system(
+    mut query: Query<(&mut AnimationState, &mut Sprite, &AnimationType), Changed<AnimationType>>,
+    sprite_sheets: Res<SpriteSheets>,
+    assets: Res<Assets<TextureAtlasLayout>>,
+) {
+    for (mut anim_state, mut sprite, animation_type) in query.iter_mut() {
+        match animation_type {
+            AnimationType::SlimeJumpIdle => {
+                sprite.image = sprite_sheets.slime_jump_idle.clone();
+                if let Some(ref mut atlas) = sprite.texture_atlas {
+                    atlas.layout = sprite_sheets.jump_idle_layout.clone();
+                }
+                *anim_state = AnimationState::new(
+                    0.1,
+                    assets.get(&sprite_sheets.jump_idle_layout).unwrap().len(),
+                    true,
+                );
+            }
+            AnimationType::SlimeAttack => {
+                sprite.image = sprite_sheets.slime_attack.clone();
+                if let Some(ref mut atlas) = sprite.texture_atlas {
+                    atlas.layout = sprite_sheets.attack_layout.clone();
+                }
+                *anim_state = AnimationState::new(
+                    0.1,
+                    assets.get(&sprite_sheets.attack_layout).unwrap().len(),
+                    false,
+                );
+            }
+            AnimationType::SlimeMoveSmallJump => {
+                sprite.image = sprite_sheets.slime_move_small_jump.clone();
+                if let Some(ref mut atlas) = sprite.texture_atlas {
+                    atlas.layout = sprite_sheets.move_small_jump_layout.clone();
+                }
+                *anim_state = AnimationState::new(
+                    0.1,
+                    assets
+                        .get(&sprite_sheets.move_small_jump_layout)
+                        .unwrap()
+                        .len(),
+                    true,
+                );
+            }
+            AnimationType::SlimeHurt => {
+                sprite.image = sprite_sheets.slime_hurt.clone();
+                if let Some(ref mut atlas) = sprite.texture_atlas {
+                    atlas.layout = sprite_sheets.hurt_layout.clone();
+                }
+                *anim_state = AnimationState::new(
+                    0.1,
+                    assets.get(&sprite_sheets.hurt_layout).unwrap().len(),
+                    false,
+                );
+            }
+            AnimationType::SlimeDeath => {
+                sprite.image = sprite_sheets.slime_death.clone();
+                if let Some(ref mut atlas) = sprite.texture_atlas {
+                    atlas.layout = sprite_sheets.death_layout.clone();
+                }
+                *anim_state = AnimationState::new(
+                    0.1,
+                    assets.get(&sprite_sheets.death_layout).unwrap().len(),
+                    false,
+                );
+            }
+        }
+    }
+}
+
+pub fn load_sprite_sheets(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlas_layouts: ResMut<Assets<TextureAtlasLayout>>,
+) {
+    // Load all sprite sheet images
+    let slime_jump_idle = asset_server.load("sprites/slimes/Jump-Idle/Slime_Jump_Spritesheet.png");
+    let slime_attack = asset_server.load("sprites/slimes/Attack/Slime_Attack_Spritesheet.png");
+    let slime_move_small_jump =
+        asset_server.load("sprites/slimes/Move-Small Jump/Slime_Move-Small Jump_Spritesheet.png");
+    let slime_hurt = asset_server.load("sprites/slimes/Hurt/Slime_Hurt_Spritesheet.png");
+    let slime_death = asset_server.load("sprites/slimes/Death/Slime_Death_Spritesheet.png");
+
+    // Create texture atlas layouts (define frame grid)
+    let jump_idle_layout = texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
+        UVec2::new(60, 99),
+        6,
+        1,
+        None,
+        None,
+    ));
+
+    let attack_layout = texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
+        UVec2::new(60, 99),
+        5,
+        1,
+        None,
+        None,
+    ));
+
+    let move_small_jump_layout = texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
+        UVec2::new(60, 99),
+        6,
+        1,
+        None,
+        None,
+    ));
+
+    let hurt_layout = texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
+        UVec2::new(60, 99),
+        3,
+        1,
+        None,
+        None,
+    ));
+
+    let death_layout = texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
+        UVec2::new(60, 99),
+        6,
+        1,
+        None,
+        None,
+    ));
+
+    commands.insert_resource(SpriteSheets {
+        slime_jump_idle,
+        slime_attack,
+        slime_move_small_jump,
+        slime_hurt,
+        slime_death,
+
+        jump_idle_layout,
+        attack_layout,
+        move_small_jump_layout,
+        hurt_layout,
+        death_layout,
+    });
 }
