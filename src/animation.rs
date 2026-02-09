@@ -5,7 +5,7 @@ pub struct AnimationPlugin;
 impl Plugin for AnimationPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, load_sprite_sheets)
-            .add_systems(Update, (switch_animation_system, animation_system));
+            .add_systems(Update, (switch_animation_system, animation_system).chain());
     }
 }
 
@@ -66,7 +66,7 @@ impl AnimationState {
     }
 
     pub fn update(&mut self, delta_time: f32) -> bool {
-        if self.finished || self.total_frames == 0 {
+        if self.finished {
             return false;
         }
 
