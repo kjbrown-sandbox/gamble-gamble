@@ -14,16 +14,23 @@ impl Plugin for AnimationPlugin {
 pub struct TargetEntity(Entity);
 
 pub fn move_to_target_system(
-    query: Query<(&mut Transform, &TargetEntity)>,
+    mut params: ParamSet<(
+        Query<(Entity, &mut Transform, &TargetEntity)>,
+        Query<&Transform>,
+    )>,
     mut commands: Commands,
     time: Res<Time>,
 ) {
-    for (mut transform, target) in query.iter_mut() {
-        if let Ok(target_transform) = query.get_component::<Transform>(target.0) {
-            // Move towards the target's position
-            let direction = (target_transform.translation - transform.translation).normalize();
-            let speed = 100.0; // Units per second
-            transform.translation += direction * speed * time.delta_seconds();
+    for (entity, mut transform, target) in params.p0().iter_mut() {
+        if let Ok(target_transform) = params.p1().get(target.0) {
+            if target_transform.translation == transform.translation {
+                commands.entity(entity).remove::<TargetEntity>();
+            } else {
+                // Move towards the target's position
+                let direction = (target_transform.translation - transform.translation).normalize();
+                let speed = 100.0; // Units per second
+                transform.translation += direction * speed * time.delta_secs();
+            }
         } else {
             // Remove the TargetEntity component if the target is gone
             commands.entity(entity).remove::<TargetEntity>();
