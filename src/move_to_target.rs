@@ -48,9 +48,9 @@ pub fn move_to_target_system(
     for (mover_entity, target_pos) in &move_orders {
         if let Ok((_, mut transform, _)) = params.p0().get_mut(*mover_entity) {
             let diff = *target_pos - transform.translation;
-            if diff.length() < 10.0 {
-                // Close enough — stop moving
-                transform.translation = *target_pos;
+            if diff.length() < 50.0 {
+                // Close enough to target - snap to it and remove TargetEntity
+                commands.entity(*mover_entity).remove::<TargetEntity>();
             } else {
                 let direction = diff.normalize();
                 let speed = 150.0;

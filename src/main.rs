@@ -36,6 +36,12 @@ fn spawn_slimes(mut commands: Commands) {
         TargetEntity(target_slime),
     ));
 
+    commands.spawn((
+        AnimationType::SlimeJumpIdle,
+        Transform::from_xyz(-300.0, -200.0, 0.0),
+        TargetEntity(top_left_slime),
+    ));
+
     commands.spawn(Camera2d);
 }
 
