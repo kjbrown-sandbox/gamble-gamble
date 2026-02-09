@@ -9,11 +9,7 @@ fn main() {
         .run();
 }
 
-fn spawn_slime(
-    mut commands: Commands,
-    sprite_sheets: Res<SpriteSheets>,
-    layouts: Res<Assets<TextureAtlasLayout>>,
-) {
+fn spawn_slime(mut commands: Commands) {
     commands.spawn((
         AnimationType::SlimeJumpIdle,
         Transform::from_xyz(0.0, 0.0, 0.0),
