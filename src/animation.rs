@@ -100,6 +100,10 @@ pub fn animation_system(
         }
 
         // Update the sprite's index to match the current animation frame index
+        //   let atlas = sprite
+        //       .texture_atlas
+        //       .get_or_insert_with(TextureAtlas::default);
+        //   atlas.index = anim_state.frame_index;
         if let Some(ref mut atlas) = sprite.texture_atlas {
             atlas.index = anim_state.frame_index;
         }
