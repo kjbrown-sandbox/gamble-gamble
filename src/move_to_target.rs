@@ -11,7 +11,7 @@ impl Plugin for AnimationPlugin {
 }
 
 #[derive(Component)]
-pub struct TargetEntity(Entity);
+pub struct TargetEntity(pub Entity);
 
 pub fn move_to_target_system(
     mut params: ParamSet<(
@@ -21,19 +21,45 @@ pub fn move_to_target_system(
     mut commands: Commands,
     time: Res<Time>,
 ) {
-    for (entity, mut transform, target) in params.p0().iter_mut() {
-        if let Ok(target_transform) = params.p1().get(target.0) {
-            if target_transform.translation == transform.translation {
-                commands.entity(entity).remove::<TargetEntity>();
-            } else {
-                // Move towards the target's position
-                let direction = (target_transform.translation - transform.translation).normalize();
-                let speed = 100.0; // Units per second
-                transform.translation += direction * speed * time.delta_secs();
-            }
+    // Phase 1: Collect mover entity IDs and their target entity IDs.
+    // We also need each target's position, so we read that from p1.
+    // We CAN'T read the mover's transform here — we need p0 for that,
+    // and we can't use p0 and p1 at the same time.
+    let movers: Vec<(Entity, Entity)> = params
+        .p0()
+        .iter()
+        .map(|(entity, _, target)| (entity, target.0))
+        .collect();
+
+    // Now read target positions from p1 (releases the p0 borrow)
+    let mut move_orders: Vec<(Entity, Vec3)> = Vec::new();
+    let mut lost_targets: Vec<Entity> = Vec::new();
+
+    for (mover_entity, target_entity) in &movers {
+        if let Ok(target_transform) = params.p1().get(*target_entity) {
+            move_orders.push((*mover_entity, target_transform.translation));
         } else {
-            // Remove the TargetEntity component if the target is gone
-            commands.entity(entity).remove::<TargetEntity>();
+            lost_targets.push(*mover_entity);
         }
+    }
+
+    // Phase 2: Now use p0 mutably to move the real transforms
+    let delta = time.delta_secs();
+    for (mover_entity, target_pos) in &move_orders {
+        if let Ok((_, mut transform, _)) = params.p0().get_mut(*mover_entity) {
+            let diff = *target_pos - transform.translation;
+            if diff.length() < 1.0 {
+                // Close enough — stop moving
+                transform.translation = *target_pos;
+            } else {
+                let direction = diff.normalize();
+                let speed = 100.0;
+                transform.translation += direction * speed * delta;
+            }
+        }
+    }
+
+    for entity in lost_targets {
+        commands.entity(entity).remove::<TargetEntity>();
     }
 }

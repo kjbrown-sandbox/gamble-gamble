@@ -66,7 +66,7 @@ impl AnimationState {
     }
 
     pub fn update(&mut self, delta_time: f32) -> bool {
-        if self.finished {
+        if self.finished || self.total_frames == 0 {
             return false;
         }
 
