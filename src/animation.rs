@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, render::render_resource::Texture};
 
 pub struct AnimationPlugin;
 
@@ -9,14 +9,21 @@ impl Plugin for AnimationPlugin {
     }
 }
 
-#[require(AnimationState, Sprite)]
 #[derive(Component, Copy, Clone, PartialEq, Eq, Hash)]
+#[require(AnimationState, Sprite)]
 pub enum AnimationType {
     SlimeJumpIdle,
     SlimeAttack,
     SlimeMoveSmallJump,
     SlimeHurt,
     SlimeDeath,
+}
+
+fn default_animated_sprite() -> Sprite {
+    Sprite {
+        texture_atlas: Some(TextureAtlas::default()),
+        ..default()
+    }
 }
 
 #[derive(Component, Default)]
@@ -100,10 +107,6 @@ pub fn animation_system(
         }
 
         // Update the sprite's index to match the current animation frame index
-        //   let atlas = sprite
-        //       .texture_atlas
-        //       .get_or_insert_with(TextureAtlas::default);
-        //   atlas.index = anim_state.frame_index;
         if let Some(ref mut atlas) = sprite.texture_atlas {
             atlas.index = anim_state.frame_index;
         }
@@ -117,12 +120,11 @@ pub fn switch_animation_system(
     assets: Res<Assets<TextureAtlasLayout>>,
 ) {
     for (mut anim_state, mut sprite, animation_type) in query.iter_mut() {
+        let mut wip_texture_atlas = TextureAtlas::default();
         match animation_type {
             AnimationType::SlimeJumpIdle => {
                 sprite.image = sprite_sheets.slime_jump_idle.clone();
-                if let Some(ref mut atlas) = sprite.texture_atlas {
-                    atlas.layout = sprite_sheets.jump_idle_layout.clone();
-                }
+                wip_texture_atlas.layout = sprite_sheets.jump_idle_layout.clone();
                 *anim_state = AnimationState::new(
                     0.1,
                     assets.get(&sprite_sheets.jump_idle_layout).unwrap().len(),
@@ -131,9 +133,7 @@ pub fn switch_animation_system(
             }
             AnimationType::SlimeAttack => {
                 sprite.image = sprite_sheets.slime_attack.clone();
-                if let Some(ref mut atlas) = sprite.texture_atlas {
-                    atlas.layout = sprite_sheets.attack_layout.clone();
-                }
+                wip_texture_atlas.layout = sprite_sheets.attack_layout.clone();
                 *anim_state = AnimationState::new(
                     0.1,
                     assets.get(&sprite_sheets.attack_layout).unwrap().len(),
@@ -142,9 +142,7 @@ pub fn switch_animation_system(
             }
             AnimationType::SlimeMoveSmallJump => {
                 sprite.image = sprite_sheets.slime_move_small_jump.clone();
-                if let Some(ref mut atlas) = sprite.texture_atlas {
-                    atlas.layout = sprite_sheets.move_small_jump_layout.clone();
-                }
+                wip_texture_atlas.layout = sprite_sheets.move_small_jump_layout.clone();
                 *anim_state = AnimationState::new(
                     0.1,
                     assets
@@ -156,9 +154,7 @@ pub fn switch_animation_system(
             }
             AnimationType::SlimeHurt => {
                 sprite.image = sprite_sheets.slime_hurt.clone();
-                if let Some(ref mut atlas) = sprite.texture_atlas {
-                    atlas.layout = sprite_sheets.hurt_layout.clone();
-                }
+                wip_texture_atlas.layout = sprite_sheets.hurt_layout.clone();
                 *anim_state = AnimationState::new(
                     0.1,
                     assets.get(&sprite_sheets.hurt_layout).unwrap().len(),
@@ -167,9 +163,7 @@ pub fn switch_animation_system(
             }
             AnimationType::SlimeDeath => {
                 sprite.image = sprite_sheets.slime_death.clone();
-                if let Some(ref mut atlas) = sprite.texture_atlas {
-                    atlas.layout = sprite_sheets.death_layout.clone();
-                }
+                wip_texture_atlas.layout = sprite_sheets.death_layout.clone();
                 *anim_state = AnimationState::new(
                     0.1,
                     assets.get(&sprite_sheets.death_layout).unwrap().len(),
@@ -177,21 +171,9 @@ pub fn switch_animation_system(
                 );
             }
         }
+        sprite.texture_atlas = Some(wip_texture_atlas);
     }
 }
-
-// pub fn set_initial_sprite_and_animation_system(
-//     mut query: Query<
-//         (Entity),
-//         (
-//             Added<AnimationType>,
-//             Without<Sprite>,
-//             Without<AnimationState>,
-//         ),
-//     >,
-//     sprite_sheets: Res<SpriteSheets>,
-// ) {
-// }
 
 pub fn load_sprite_sheets(
     mut commands: Commands,
