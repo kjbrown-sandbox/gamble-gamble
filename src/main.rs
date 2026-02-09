@@ -14,8 +14,6 @@ fn spawn_slime(
     sprite_sheets: Res<SpriteSheets>,
     layouts: Res<Assets<TextureAtlasLayout>>,
 ) {
-    let layout = layouts.get(&sprite_sheets.jump_idle_layout).unwrap();
-
     commands.spawn((
         AnimationType::SlimeJumpIdle,
         Transform::from_xyz(0.0, 0.0, 0.0),
