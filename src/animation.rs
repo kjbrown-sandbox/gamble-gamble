@@ -9,7 +9,7 @@ impl Plugin for AnimationPlugin {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum AnimationType {
     SlimeJumpIdle,
     SlimeAttack,
@@ -57,9 +57,9 @@ impl AnimationState {
         }
     }
 
-    pub fn update(&mut self, delta_time: f32) {
+    pub fn update(&mut self, delta_time: f32) -> bool {
         if self.finished {
-            return;
+            return false;
         }
 
         self.frame_timer += delta_time;
@@ -75,17 +75,30 @@ impl AnimationState {
                 } else {
                     self.frame_index = self.total_frames - 1; // Stay on last frame
                     self.finished = true;
+                    return true;
                 }
             }
         }
+        false
     }
 }
 
-pub fn animation_system(mut query: Query<(&mut AnimationState, &mut Sprite)>, time: Res<Time>) {
-    for (mut anim_state, mut sprite) in query.iter_mut() {
-        anim_state.update(time.delta_secs());
+pub fn animation_system(
+    mut query: Query<(&mut AnimationState, &mut Sprite, &AnimationType, Entity)>,
+    time: Res<Time>,
+    mut commands: Commands,
+) {
+    for (mut anim_state, mut sprite, animation_type, entity) in query.iter_mut() {
+        // Send an event when a non-looping animation finishes
+        let finished = anim_state.update(time.delta_secs());
+        if finished {
+            commands.trigger(AnimationFinishedEvent {
+                entity: entity,
+                animation_type: *animation_type,
+            });
+        }
 
-        // Update the sprite's index to match the current animation frame
+        // Update the sprite's index to match the current animation frame index
         if let Some(ref mut atlas) = sprite.texture_atlas {
             atlas.index = anim_state.frame_index;
         }
@@ -229,4 +242,10 @@ pub fn load_sprite_sheets(
         hurt_layout,
         death_layout,
     });
+}
+
+#[derive(Event)]
+pub struct AnimationFinishedEvent {
+    pub entity: Entity,
+    pub animation_type: AnimationType,
 }
