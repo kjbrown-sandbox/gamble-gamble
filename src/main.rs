@@ -9,6 +9,7 @@ fn main() {
             DefaultPlugins,
             animation::AnimationPlugin,
             move_to_target::MoveToTargetPlugin,
+            pick_target::PickTargetPlugin,
             // combat::CombatPlugin,
         ))
         .add_systems(Startup, spawn_slimes.after(animation::load_sprite_sheets))

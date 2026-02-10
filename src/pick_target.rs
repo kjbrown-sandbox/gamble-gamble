@@ -25,12 +25,6 @@ pub enum Team {
 }
 
 pub fn pick_target_system(
-    //  mut params: ParamSet<(
-    //      Query<(Entity, &mut Transform, &TargetEntity)>,
-    //      Query<&Transform>,
-    //  )>,
-    //  mut commands: Commands,
-    //  time: Res<Time>,
     entities_needing_targets: Query<
         (Entity, &PickTargetStrategy, &Team, &Transform),
         Without<TargetEntity>,
@@ -40,18 +34,8 @@ pub fn pick_target_system(
 ) {
     let mut rng = rand::thread_rng();
     for (entity, strategy, team, transform) in entities_needing_targets {
-        let mut target_entity;
-        match strategy {
+        let target_entity: Option<Entity> = match strategy {
             PickTargetStrategy::Close => {
-                // We need a random number generator to sample from the candidates
-
-                // Step 1: Collect all enemies (entities on the opposite team)
-                // Step 2: Randomly pick up to 3 of them
-                // Step 3: Of those 3, find the nearest one
-                //
-                // Why not just pick the nearest overall? This adds variety—
-                // units won't all dogpile the same target. It's a simple way
-                // to simulate imperfect "awareness" of the battlefield.
                 let candidates: Vec<(Entity, &Transform)> = potential_targets
                     .iter()
                     .filter(|(_, target_team, _)| *target_team != team) // Step 1: filter to enemies
@@ -64,13 +48,14 @@ pub fn pick_target_system(
                     .min_by(|(_, a_transform), (_, b_transform)| {
                         let dist_a = transform.translation.distance(a_transform.translation);
                         let dist_b = transform.translation.distance(b_transform.translation);
-                        // partial_cmp because f32 doesn't implement Ord (due to NaN).
-                        // unwrap is safe here—distances between real positions won't be NaN.
                         dist_a.partial_cmp(&dist_b).unwrap()
                     })
                     .map(|(target_entity, _)| target_entity)
             }
+        };
+
+        if let Some(target_entity) = target_entity {
+            commands.entity(entity).insert(TargetEntity(target_entity));
         }
-        commands.entity(entity).insert(TargetEntity(target_entity));
     }
 }
