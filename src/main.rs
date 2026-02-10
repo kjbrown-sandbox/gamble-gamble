@@ -8,7 +8,7 @@ fn main() {
         .add_plugins((
             DefaultPlugins,
             animation::AnimationPlugin,
-            move_to_target::MoveToTargetPlugin,
+            movement::MoveToTargetPlugin,
             pick_target::PickTargetPlugin,
             render::RenderPlugin,
             // combat::CombatPlugin,
@@ -45,6 +45,6 @@ fn spawn_slimes(mut commands: Commands) {
 
 mod animation;
 mod combat;
-mod move_to_target;
+mod movement;
 mod pick_target;
 mod render;
