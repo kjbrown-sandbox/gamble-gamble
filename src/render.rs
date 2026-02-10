@@ -1,10 +1,26 @@
 use bevy::prelude::*;
 
+use crate::move_to_target::TargetEntity;
+
 pub struct RenderPlugin;
 
 impl Plugin for RenderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, y_sort_system);
+        app.add_systems(Update, (y_sort_system, face_target_system));
+    }
+}
+
+/// Flips sprites horizontally so they face their target.
+fn face_target_system(
+    mut sprites: Query<(&Transform, &TargetEntity, &mut Sprite)>,
+    targets: Query<&Transform>,
+) {
+    for (transform, target, mut sprite) in &mut sprites {
+        // Look up the target's transform. If the target no longer exists, skip.
+        if let Ok(target_transform) = targets.get(target.0) {
+            // Flip when the target is to the left of this entity
+            sprite.flip_x = target_transform.translation.x < transform.translation.x;
+        }
     }
 }
 
