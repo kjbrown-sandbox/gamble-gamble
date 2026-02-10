@@ -2,11 +2,12 @@ use std::time;
 
 use bevy::prelude::*;
 
-pub struct MoveToTargetPlugin;
+pub struct MovementPlugin;
 
-impl Plugin for MoveToTargetPlugin {
+impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, move_to_target_system);
+        // unsmush runs after move_to_target so it gets the "last word" each frame
+        app.add_systems(Update, (move_to_target_system, unsmush_system).chain());
     }
 }
 
@@ -58,5 +59,56 @@ pub fn move_to_target_system(
 
     for entity in lost_targets {
         commands.entity(entity).remove::<TargetEntity>();
+    }
+}
+
+/// Pushes entities apart when they're within 50 units of each other.
+/// The closer they are, the stronger the push. This prevents units
+/// from stacking on top of each other.
+pub fn unsmush_system(mut query: Query<(Entity, &mut Transform), With<Sprite>>, time: Res<Time>) {
+    let min_distance = 50.0;
+    let push_strength = 100.0;
+
+    // Phase 1: Collect all positions so we can compare without borrow conflicts.
+    // We need to read every entity's position while also mutating transforms,
+    // so we snapshot positions first.
+    let positions: Vec<(Entity, Vec3)> = query
+        .iter()
+        .map(|(entity, transform)| (entity, transform.translation))
+        .collect();
+
+    // Phase 2: For each pair, calculate push forces.
+    // We accumulate forces first, then apply them — otherwise earlier pushes
+    // would affect later distance calculations within the same frame.
+    let mut pushes: Vec<(Entity, Vec3)> = Vec::new();
+
+    for i in 0..positions.len() {
+        for j in (i + 1)..positions.len() {
+            let (entity_a, pos_a) = positions[i];
+            let (entity_b, pos_b) = positions[j];
+
+            // Only compare x and y; z is used for draw order, not spacing
+            let diff = Vec3::new(pos_a.x - pos_b.x, pos_a.y - pos_b.y, 0.0);
+            let distance = diff.length();
+
+            if distance < min_distance && distance > 0.01 {
+                // How much of the min_distance are we violating? (0.0 = barely touching, 1.0 = fully overlapping)
+                let overlap_ratio = 1.0 - (distance / min_distance);
+
+                // Direction from B to A (push A away from B and vice versa)
+                let direction = diff.normalize();
+                let force = direction * overlap_ratio * push_strength * time.delta_secs();
+
+                pushes.push((entity_a, force));
+                pushes.push((entity_b, -force)); // opposite direction
+            }
+        }
+    }
+
+    // Phase 3: Apply all pushes
+    for (entity, force) in pushes {
+        if let Ok((_, mut transform)) = query.get_mut(entity) {
+            transform.translation += force;
+        }
     }
 }

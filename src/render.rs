@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::move_to_target::TargetEntity;
+use crate::movement::TargetEntity;
 
 pub struct RenderPlugin;
 

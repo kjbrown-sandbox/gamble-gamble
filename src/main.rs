@@ -8,7 +8,7 @@ fn main() {
         .add_plugins((
             DefaultPlugins,
             animation::AnimationPlugin,
-            movement::MoveToTargetPlugin,
+            movement::MovementPlugin,
             pick_target::PickTargetPlugin,
             render::RenderPlugin,
             // combat::CombatPlugin,

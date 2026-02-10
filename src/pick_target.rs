@@ -3,7 +3,7 @@ use std::time;
 use bevy::{prelude::*, state::commands};
 use rand::seq::IteratorRandom;
 
-use crate::move_to_target::TargetEntity;
+use crate::movement::TargetEntity;
 
 pub struct PickTargetPlugin;
 
