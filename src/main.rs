@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::animation::AnimationType;
-use crate::move_to_target::TargetEntity;
+use crate::pick_target::{PickTargetStrategy, Team};
 
 fn main() {
     App::new()
@@ -17,35 +17,27 @@ fn main() {
 }
 
 fn spawn_slimes(mut commands: Commands) {
-    // Spawn unmoving target on the top left
-    let top_left_slime = commands
-        .spawn((
+    // Spawn 5 player slimes on the left side, spread out vertically
+    for i in 0..5 {
+        let y = -200.0 + (i as f32 * 100.0); // Spread from -200 to 200
+        commands.spawn((
             AnimationType::SlimeJumpIdle,
-            Transform::from_xyz(-300.0, 200.0, 0.0),
-        ))
-        .id();
+            Transform::from_xyz(-300.0, y, 0.0),
+            Team::Player,
+            PickTargetStrategy::Close,
+        ));
+    }
 
-    // Spawn the target slime on the right
-    let target_slime = commands
-        .spawn((
+    // Spawn 5 enemy slimes on the right side, spread out vertically
+    for i in 0..5 {
+        let y = -200.0 + (i as f32 * 100.0);
+        commands.spawn((
             AnimationType::SlimeJumpIdle,
-            Transform::from_xyz(300.0, 200.0, 0.0),
-            TargetEntity(top_left_slime),
-        ))
-        .id();
-
-    // Spawn the chaser slime on the left, targeting the first
-    commands.spawn((
-        AnimationType::SlimeJumpIdle,
-        Transform::from_xyz(-100.0, -200.0, 0.0),
-        TargetEntity(target_slime),
-    ));
-
-    commands.spawn((
-        AnimationType::SlimeJumpIdle,
-        Transform::from_xyz(-300.0, -200.0, 0.0),
-        TargetEntity(top_left_slime),
-    ));
+            Transform::from_xyz(300.0, y, 0.0),
+            Team::Enemy,
+            PickTargetStrategy::Close,
+        ));
+    }
 
     commands.spawn(Camera2d);
 }
