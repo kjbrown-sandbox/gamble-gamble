@@ -2,11 +2,11 @@ use std::time;
 
 use bevy::prelude::*;
 
-pub struct AnimationPlugin;
+pub struct MoveToTargetPlugin;
 
-impl Plugin for AnimationPlugin {
+impl Plugin for MoveToTargetPlugin {
     fn build(&self, app: &mut App) {
-        //   app.add_systems()
+        app.add_systems(Update, move_to_target_system);
     }
 }
 

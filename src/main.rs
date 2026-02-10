@@ -5,9 +5,13 @@ use crate::move_to_target::TargetEntity;
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, animation::AnimationPlugin))
+        .add_plugins((
+            DefaultPlugins,
+            animation::AnimationPlugin,
+            move_to_target::MoveToTargetPlugin,
+            // combat::CombatPlugin,
+        ))
         .add_systems(Startup, spawn_slimes.after(animation::load_sprite_sheets))
-        .add_systems(Update, move_to_target::move_to_target_system)
         .run();
 }
 
@@ -46,4 +50,6 @@ fn spawn_slimes(mut commands: Commands) {
 }
 
 mod animation;
+mod combat;
 mod move_to_target;
+mod pick_target;
