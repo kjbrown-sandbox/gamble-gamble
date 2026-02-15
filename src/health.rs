@@ -32,18 +32,10 @@ pub struct Dying;
 #[derive(Component, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct DeathAnimation(pub AnimationType);
 
+#[derive(Component, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct HurtSfx(pub String); // I will want a hurt sound effect too when I do audio
+
 // I will want a death sound effect too when I do audio
-
-// #[derive(Component, Copy, Clone, PartialEq, Eq, Hash)]
-// pub enum PickTargetStrategy {
-//     Close,
-// }
-
-// #[derive(Component, Copy, Clone, PartialEq, Eq, Hash)]
-// pub enum Team {
-//     Player,
-//     Enemy,
-// }
 
 pub fn set_dying_system(
     mut commands: Commands,
@@ -77,38 +69,16 @@ pub fn when_finishes_dying_system(
     }
 }
 
-// pub fn pick_target_system(
-//     entities_needing_targets: Query<
-//         (Entity, &PickTargetStrategy, &Team, &Transform),
-//         Without<TargetEntity>,
-//     >,
-//     potential_targets: Query<(Entity, &Team, &Transform)>,
-//     mut commands: Commands,
-// ) {
-//     let mut rng = rand::thread_rng();
-//     for (entity, strategy, team, transform) in entities_needing_targets {
-//         let target_entity: Option<Entity> = match strategy {
-//             PickTargetStrategy::Close => {
-//                 let candidates: Vec<(Entity, &Transform)> = potential_targets
-//                     .iter()
-//                     .filter(|(_, target_team, _)| *target_team != team) // Step 1: filter to enemies
-//                     .map(|(e, _, t)| (e, t))
-//                     .choose_multiple(&mut rng, 3); // randomly sample up to 3
+#[derive(Event)]
+pub struct DamagedEvent {
+    pub entity: Entity,
+}
 
-//                 // Of our shortlist, pick whichever is closest
-//                 candidates
-//                     .into_iter()
-//                     .min_by(|(_, a_transform), (_, b_transform)| {
-//                         let dist_a = transform.translation.distance(a_transform.translation);
-//                         let dist_b = transform.translation.distance(b_transform.translation);
-//                         dist_a.partial_cmp(&dist_b).unwrap()
-//                     })
-//                     .map(|(target_entity, _)| target_entity)
-//             }
-//         };
-
-//         if let Some(target_entity) = target_entity {
-//             commands.entity(entity).insert(TargetEntity(target_entity));
-//         }
-//     }
-// }
+pub fn on_damaged_event(
+    trigger: On<DamagedEvent>,
+    mut commands: Commands,
+    mut query: Query<&mut Health>,
+) {
+    // do nothing currently, but play hurt sfx here when I add audio
+    // Also add shader eventually
+}
