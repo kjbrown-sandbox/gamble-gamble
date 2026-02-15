@@ -14,9 +14,12 @@ impl Plugin for MovementPlugin {
 #[derive(Component)]
 pub struct TargetEntity(pub Entity);
 
+#[derive(Component, Copy, Clone, PartialEq)]
+pub struct Speed(pub f32);
+
 pub fn move_to_target_system(
     mut params: ParamSet<(
-        Query<(Entity, &mut Transform, &TargetEntity)>,
+        Query<(Entity, &mut Transform, &TargetEntity, &Speed)>,
         Query<&Transform>,
     )>,
     mut commands: Commands,
@@ -29,7 +32,7 @@ pub fn move_to_target_system(
     let movers: Vec<(Entity, Entity)> = params
         .p0()
         .iter()
-        .map(|(entity, _, target)| (entity, target.0))
+        .map(|(entity, _, target, _)| (entity, target.0))
         .collect();
 
     // Now read target positions from p1 (releases the p0 borrow)
@@ -47,12 +50,11 @@ pub fn move_to_target_system(
     // Phase 2: Now use p0 mutably to move the real transforms
     let delta = time.delta_secs();
     for (mover_entity, target_pos) in &move_orders {
-        if let Ok((_, mut transform, _)) = params.p0().get_mut(*mover_entity) {
+        if let Ok((_, mut transform, _, speed)) = params.p0().get_mut(*mover_entity) {
             let diff = *target_pos - transform.translation;
             if diff.length() > 50.0 {
                 let direction = diff.normalize();
-                let speed = 125.0;
-                transform.translation += direction * speed * delta;
+                transform.translation += direction * speed.0 * delta;
             }
         }
     }

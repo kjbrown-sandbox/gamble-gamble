@@ -5,7 +5,7 @@ use rand::seq::IteratorRandom;
 
 use crate::{
     animation::{AnimationState, AnimationType},
-    movement::TargetEntity,
+    movement::{Speed, TargetEntity},
 };
 
 pub struct HealthPlugin;
@@ -32,7 +32,7 @@ pub struct Dying;
 #[derive(Component, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct DeathAnimation(pub AnimationType);
 
-#[derive(Component, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Component, Clone, PartialEq, Eq, Hash)]
 pub struct HurtSfx(pub String); // I will want a hurt sound effect too when I do audio
 
 // I will want a death sound effect too when I do audio
@@ -51,10 +51,28 @@ pub fn set_dying_system(
 pub fn when_starts_dying_system(
     mut commands: Commands,
     mut query: Query<(&mut AnimationType, &DeathAnimation), Added<Dying>>,
+    mut dying_with_speed: Query<(Entity), (Added<Dying>, With<Speed>)>,
+    //  mut remove_from_target: Query<(Entity, &TargetEntity),
+    dying_entities: Query<Entity, Added<Dying>>,
+    mut entities_with_targets: Query<(Entity, &TargetEntity)>,
 ) {
     for (mut current_animation, death_animation) in query.iter_mut() {
         *current_animation = death_animation.0;
         //  commands.entity(entity).insert(DeathAnimation(*death_animation));
+    }
+
+    for entity in dying_with_speed.iter() {
+        // Remove speed so they stop moving immediately when they start dying
+        commands.entity(entity).remove::<Speed>();
+    }
+
+    // Remove dying entities from being targeted by movers
+    for dying_entity in dying_entities.iter() {
+        for (entity, target) in entities_with_targets.iter_mut() {
+            if target.0 == dying_entity {
+                commands.entity(entity).remove::<TargetEntity>();
+            }
+        }
     }
 }
 

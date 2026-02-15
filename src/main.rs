@@ -1,8 +1,10 @@
 use bevy::prelude::*;
+use rand::seq::IteratorRandom;
 
 use crate::animation::AnimationType;
 use crate::armies::EnemyArmies;
 use crate::health::{DeathAnimation, Health};
+use crate::movement::Speed;
 use crate::pick_target::{PickTargetStrategy, Team};
 use crate::save_load::SaveData;
 
@@ -23,7 +25,7 @@ fn main() {
         //   - SaveData (from save_load's startup system)
         //   - EnemyArmies (from armies plugin, via init_resource — available immediately)
         .add_systems(Startup, spawn_slimes.after(animation::load_sprite_sheets))
-        .add_systems(Update, kill_all_on_spacebar)
+        .add_systems(Update, kill_random_on_spacebar)
         .run();
 }
 
@@ -44,7 +46,8 @@ fn spawn_slimes(mut commands: Commands, save_data: Res<SaveData>, enemy_armies: 
             Team::Player,
             PickTargetStrategy::Close,
             DeathAnimation(AnimationType::SlimeDeath),
-            Health(10), // Starting health for player slimes
+            Health(10),   // Starting health for player slimes
+            Speed(125.0), // Movement speed for player slimes
         ));
     }
 
@@ -59,25 +62,21 @@ fn spawn_slimes(mut commands: Commands, save_data: Res<SaveData>, enemy_armies: 
             Team::Enemy,
             PickTargetStrategy::Close,
             DeathAnimation(AnimationType::SlimeDeath),
-            Health(10), // Starting health for enemy slimes
+            Health(10),   // Starting health for enemy slimes
+            Speed(125.0), // Movement speed for enemy slimes
         ));
     }
 
     commands.spawn(Camera2d);
 }
 
-/// Debug system: press spacebar to kill everything.
-///
-/// Res<ButtonInput<KeyCode>> is how Bevy exposes keyboard state.
-/// just_pressed returns true only on the frame the key goes down
-/// (not while held). There's also `pressed` (true while held)
-/// and `just_released` (true on the frame it's released).
-fn kill_all_on_spacebar(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut query: Query<&mut Health>,
-) {
+/// Debug system: press spacebar to kill a random slime.
+fn kill_random_on_spacebar(keyboard: Res<ButtonInput<KeyCode>>, mut query: Query<&mut Health>) {
     if keyboard.just_pressed(KeyCode::Space) {
-        for mut health in &mut query {
+        let mut rng = rand::thread_rng();
+        // iter_mut() gives us mutable access to Health components.
+        // choose() picks one at random, returning Option (None if query is empty).
+        if let Some(mut health) = query.iter_mut().choose(&mut rng) {
             health.0 = 0;
         }
     }
