@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::animation::AnimationType;
 use crate::armies::EnemyArmies;
+use crate::health::{DeathAnimation, Health};
 use crate::pick_target::{PickTargetStrategy, Team};
 use crate::save_load::SaveData;
 
@@ -15,16 +16,13 @@ fn main() {
             pick_target::PickTargetPlugin,
             render::RenderPlugin,
             save_load::SaveLoadPlugin,
-            // combat::CombatPlugin,
+            health::HealthPlugin,
         ))
         // spawn_slimes needs three resources to exist first:
         //   - SpriteSheets (from animation::load_sprite_sheets)
         //   - SaveData (from save_load's startup system)
         //   - EnemyArmies (from armies plugin, via init_resource — available immediately)
-        .add_systems(
-            Startup,
-            spawn_slimes.after(animation::load_sprite_sheets),
-        )
+        .add_systems(Startup, spawn_slimes.after(animation::load_sprite_sheets))
         .run();
 }
 
@@ -35,11 +33,7 @@ fn main() {
 ///
 /// Note: we take Res<T> (immutable reference) since we only need to read these.
 /// If we needed to modify them, we'd use ResMut<T>.
-fn spawn_slimes(
-    mut commands: Commands,
-    save_data: Res<SaveData>,
-    enemy_armies: Res<EnemyArmies>,
-) {
+fn spawn_slimes(mut commands: Commands, save_data: Res<SaveData>, enemy_armies: Res<EnemyArmies>) {
     // Player army — count comes from the save file
     for i in 0..save_data.slime_count {
         let y = -200.0 + (i as f32 * 100.0);
@@ -48,6 +42,8 @@ fn spawn_slimes(
             Transform::from_xyz(-300.0, y, 0.0),
             Team::Player,
             PickTargetStrategy::Close,
+            DeathAnimation(AnimationType::SlimeDeath),
+            Health(10), // Starting health for player slimes
         ));
     }
 
@@ -61,6 +57,8 @@ fn spawn_slimes(
             Transform::from_xyz(300.0, y, 0.0),
             Team::Enemy,
             PickTargetStrategy::Close,
+            DeathAnimation(AnimationType::SlimeDeath),
+            Health(10), // Starting health for enemy slimes
         ));
     }
 
@@ -70,6 +68,7 @@ fn spawn_slimes(
 mod animation;
 mod armies;
 mod combat;
+mod health;
 mod movement;
 mod pick_target;
 mod render;
