@@ -12,6 +12,22 @@ edition = "2021"
 bevy = { version = "0.18.0", features = ["wav"] }
 rand = "0.8"
 
+# serde: Rust's standard serialization framework. The "derive" feature lets us
+# use #[derive(Serialize, Deserialize)] on our structs instead of manually
+# implementing the traits. Almost every Rust project that does file I/O uses serde.
+serde = { version = "1", features = ["derive"] }
+
+# RON: "Rusty Object Notation" — a data format that looks like Rust syntax.
+# Bevy uses RON for its scene files. We use it for our save file.
+# Alternatives: serde_json (JSON), toml (TOML). They all plug into serde
+# the same way — you just swap the serializer/deserializer.
+ron = "0.8"
+
+# dirs: Cross-platform library for finding standard directories.
+# Gives us the right save location on macOS, Linux, and Windows
+# without hardcoding paths. Not needed on WASM (browser uses localStorage).
+dirs = "5"
+
 # Enable a small amount of optimization in the dev profile.
 [profile.dev]
 opt-level = 1
