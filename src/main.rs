@@ -23,6 +23,7 @@ fn main() {
         //   - SaveData (from save_load's startup system)
         //   - EnemyArmies (from armies plugin, via init_resource — available immediately)
         .add_systems(Startup, spawn_slimes.after(animation::load_sprite_sheets))
+        .add_systems(Update, kill_all_on_spacebar)
         .run();
 }
 
@@ -63,6 +64,23 @@ fn spawn_slimes(mut commands: Commands, save_data: Res<SaveData>, enemy_armies: 
     }
 
     commands.spawn(Camera2d);
+}
+
+/// Debug system: press spacebar to kill everything.
+///
+/// Res<ButtonInput<KeyCode>> is how Bevy exposes keyboard state.
+/// just_pressed returns true only on the frame the key goes down
+/// (not while held). There's also `pressed` (true while held)
+/// and `just_released` (true on the frame it's released).
+fn kill_all_on_spacebar(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut query: Query<&mut Health>,
+) {
+    if keyboard.just_pressed(KeyCode::Space) {
+        for mut health in &mut query {
+            health.0 = 0;
+        }
+    }
 }
 
 mod animation;
