@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use rand::seq::IteratorRandom;
+use rand::Rng;
 
 use crate::animation::AnimationType;
 use crate::armies::EnemyArmies;
@@ -37,33 +38,37 @@ fn main() {
 /// Note: we take Res<T> (immutable reference) since we only need to read these.
 /// If we needed to modify them, we'd use ResMut<T>.
 fn spawn_slimes(mut commands: Commands, save_data: Res<SaveData>, enemy_armies: Res<EnemyArmies>) {
+    let mut rng = rand::thread_rng();
+
     // Player army — count comes from the save file
-    for i in 0..save_data.slime_count {
-        let y = -200.0 + (i as f32 * 100.0);
+    for _ in 0..save_data.slime_count * 100 {
+        let x = rng.gen_range(-500.0..-100.0);
+        let y = rng.gen_range(-300.0..300.0);
         commands.spawn((
             AnimationType::SlimeJumpIdle,
-            Transform::from_xyz(-300.0, y, 0.0),
+            Transform::from_xyz(x, y, 0.0),
             Team::Player,
             PickTargetStrategy::Close,
             DeathAnimation(AnimationType::SlimeDeath),
-            Health(10),   // Starting health for player slimes
-            Speed(125.0), // Movement speed for player slimes
+            Health(10),
+            Speed(125.0),
         ));
     }
 
     // Enemy army — use the first army definition for now.
     // Later, which army you fight could depend on what stage/round you're on.
     let enemy_army = &enemy_armies.armies[0];
-    for i in 0..enemy_army.slime_count {
-        let y = -200.0 + (i as f32 * 100.0);
+    for _ in 0..enemy_army.slime_count * 100 {
+        let x = rng.gen_range(100.0..500.0);
+        let y = rng.gen_range(-300.0..300.0);
         commands.spawn((
             AnimationType::SlimeJumpIdle,
-            Transform::from_xyz(300.0, y, 0.0),
+            Transform::from_xyz(x, y, 0.0),
             Team::Enemy,
             PickTargetStrategy::Close,
             DeathAnimation(AnimationType::SlimeDeath),
-            Health(10),   // Starting health for enemy slimes
-            Speed(125.0), // Movement speed for enemy slimes
+            Health(10),
+            Speed(125.0),
         ));
     }
 
