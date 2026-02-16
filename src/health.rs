@@ -19,7 +19,8 @@ impl Plugin for HealthPlugin {
                 when_starts_dying_system,
                 when_finishes_dying_system,
             ),
-        );
+        )
+        .add_observer(on_damaged_event);
     }
 }
 

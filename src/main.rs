@@ -4,6 +4,7 @@ use rand::Rng;
 
 use crate::animation::AnimationType;
 use crate::armies::EnemyArmies;
+use crate::combat::{Attack, AttackEffect, KnownAttacks};
 use crate::health::{DeathAnimation, Health};
 use crate::movement::Speed;
 use crate::pick_target::{PickTargetStrategy, Team};
@@ -20,6 +21,7 @@ fn main() {
             render::RenderPlugin,
             save_load::SaveLoadPlugin,
             health::HealthPlugin,
+            combat::CombatPlugin,
         ))
         // spawn_slimes needs three resources to exist first:
         //   - SpriteSheets (from animation::load_sprite_sheets)
@@ -41,7 +43,7 @@ fn spawn_slimes(mut commands: Commands, save_data: Res<SaveData>, enemy_armies: 
     let mut rng = rand::thread_rng();
 
     // Player army — count comes from the save file
-    for _ in 0..save_data.slime_count * 100 {
+    for _ in 0..save_data.slime_count {
         let x = rng.gen_range(-500.0..-100.0);
         let y = rng.gen_range(-300.0..300.0);
         commands.spawn((
@@ -52,13 +54,24 @@ fn spawn_slimes(mut commands: Commands, save_data: Res<SaveData>, enemy_armies: 
             DeathAnimation(AnimationType::SlimeDeath),
             Health(10),
             Speed(125.0),
+            // KnownAttacks is the entity's "move list" — all attacks it can perform.
+            // pick_attack_system will choose from these based on distance to target.
+            KnownAttacks(vec![Attack {
+                animation: AnimationType::SlimeAttack,
+                hit_frame: 3, // damage lands on frame 3 of the attack animation
+                on_hit_effect: AttackEffect {
+                    damage: 1,
+                    knockback: 20.0,
+                },
+                range: 60.0, // must be >= 50.0 (movement stops at 50 units)
+            }]),
         ));
     }
 
     // Enemy army — use the first army definition for now.
     // Later, which army you fight could depend on what stage/round you're on.
     let enemy_army = &enemy_armies.armies[0];
-    for _ in 0..enemy_army.slime_count * 100 {
+    for _ in 0..enemy_army.slime_count {
         let x = rng.gen_range(100.0..500.0);
         let y = rng.gen_range(-300.0..300.0);
         commands.spawn((
@@ -69,6 +82,15 @@ fn spawn_slimes(mut commands: Commands, save_data: Res<SaveData>, enemy_armies: 
             DeathAnimation(AnimationType::SlimeDeath),
             Health(10),
             Speed(125.0),
+            KnownAttacks(vec![Attack {
+                animation: AnimationType::SlimeAttack,
+                hit_frame: 3,
+                on_hit_effect: AttackEffect {
+                    damage: 1,
+                    knockback: 20.0,
+                },
+                range: 60.0,
+            }]),
         ));
     }
 
