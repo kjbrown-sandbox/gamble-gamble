@@ -51,10 +51,14 @@ pub fn move_to_target_system(
     let delta = time.delta_secs();
     for (mover_entity, target_pos) in &move_orders {
         if let Ok((_, mut transform, _, speed)) = params.p0().get_mut(*mover_entity) {
-            let diff = *target_pos - transform.translation;
-            if diff.length() > 50.0 {
-                let direction = diff.normalize();
-                transform.translation += direction * speed.0 * delta;
+            let x_diff = target_pos.x - transform.translation.x;
+            if x_diff.abs() > 50.0 {
+                transform.translation.x += speed.0 * delta * x_diff.signum();
+            }
+
+            let y_diff = target_pos.y - transform.translation.y;
+            if y_diff.abs() > 35.0 {
+                transform.translation.y += speed.0 * delta * y_diff.signum();
             }
         }
     }
@@ -68,7 +72,8 @@ pub fn move_to_target_system(
 /// The closer they are, the stronger the push. This prevents units
 /// from stacking on top of each other.
 pub fn unsmush_system(mut query: Query<(Entity, &mut Transform), With<Sprite>>, time: Res<Time>) {
-    let min_distance = 50.0;
+    let min_x_distance = 50.0;
+    let min_y_distance = 35.0;
     let push_strength = 100.0;
 
     // Phase 1: Collect all positions so we can compare without borrow conflicts.
@@ -89,20 +94,27 @@ pub fn unsmush_system(mut query: Query<(Entity, &mut Transform), With<Sprite>>, 
             let (entity_a, pos_a) = positions[i];
             let (entity_b, pos_b) = positions[j];
 
-            // Only compare x and y; z is used for draw order, not spacing
-            let diff = Vec3::new(pos_a.x - pos_b.x, pos_a.y - pos_b.y, 0.0);
-            let distance = diff.length();
+            let x_diff = pos_a.x - pos_b.x;
+            let y_diff = pos_a.y - pos_b.y;
 
-            if distance < min_distance && distance > 0.01 {
-                // How much of the min_distance are we violating? (0.0 = barely touching, 1.0 = fully overlapping)
-                let overlap_ratio = 1.0 - (distance / min_distance);
+            if x_diff.abs() < min_x_distance {
+                // How much are we violating the min distance? (0.0 = barely touching, 1.0 = fully overlapping)
+                let x_overlap_ratio = 1.0 - (x_diff.abs() / min_x_distance);
 
-                // Direction from B to A (push A away from B and vice versa)
-                let direction = diff.normalize();
-                let force = direction * overlap_ratio * push_strength * time.delta_secs();
+                // Push in x and y directions separately, scaled by how much we're overlapping in each direction
+                let x_push = x_diff.signum() * x_overlap_ratio * push_strength * time.delta_secs();
+                pushes.push((entity_a, Vec3::new(x_push, 0.0, 0.0)));
+                pushes.push((entity_b, Vec3::new(-x_push, 0.0, 0.0))); // opposite direction
+            }
 
-                pushes.push((entity_a, force));
-                pushes.push((entity_b, -force)); // opposite direction
+            if y_diff.abs() < min_y_distance {
+                // How much are we violating the min distance? (0.0 = barely touching, 1.0 = fully overlapping)
+                let y_overlap_ratio = 1.0 - (y_diff.abs() / min_y_distance);
+
+                // Push in x and y directions separately, scaled by how much we're overlapping in each direction
+                let y_push = y_diff.signum() * y_overlap_ratio * push_strength * time.delta_secs();
+                pushes.push((entity_a, Vec3::new(0.0, y_push, 0.0)));
+                pushes.push((entity_b, Vec3::new(0.0, -y_push, 0.0))); // opposite direction
             }
         }
     }

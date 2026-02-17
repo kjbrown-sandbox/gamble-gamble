@@ -61,7 +61,7 @@ fn spawn_slimes(mut commands: Commands, save_data: Res<SaveData>, enemy_armies: 
                 hit_frame: 3, // damage lands on frame 3 of the attack animation
                 on_hit_effect: AttackEffect {
                     damage: 1,
-                    knockback: 20.0,
+                    knockback: 0.0,
                 },
                 range: 60.0, // must be >= 50.0 (movement stops at 50 units)
             }]),
@@ -87,7 +87,7 @@ fn spawn_slimes(mut commands: Commands, save_data: Res<SaveData>, enemy_armies: 
                 hit_frame: 3,
                 on_hit_effect: AttackEffect {
                     damage: 1,
-                    knockback: 20.0,
+                    knockback: 0.0,
                 },
                 range: 60.0,
             }]),
