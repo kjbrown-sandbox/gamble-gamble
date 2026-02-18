@@ -1,4 +1,4 @@
-use std::time;
+use std::{ops::Add, time};
 
 use bevy::{prelude::*, state::commands};
 use rand::seq::IteratorRandom;
@@ -57,7 +57,12 @@ pub fn when_starts_dying_system(
     //  mut remove_from_target: Query<(Entity, &TargetEntity),
     dying_entities: Query<Entity, Added<Dying>>,
     mut entities_with_targets: Query<(Entity, &TargetEntity)>,
+    audio: Res<GameAudio>,
 ) {
+    if !query.is_empty() {
+        commands.spawn((AudioPlayer::new(audio.slime_death.clone()),));
+    }
+
     for (mut current_animation, death_animation) in query.iter_mut() {
         *current_animation = death_animation.0;
         //  commands.entity(entity).insert(DeathAnimation(*death_animation));
@@ -101,7 +106,7 @@ pub fn on_damaged_event(
     audio: Res<GameAudio>,
 ) {
     commands.spawn((
-        AudioPlayer::new(audio.slime_damage_sound.clone()),
+        AudioPlayer::new(audio.slime_damage.clone()),
         //   PlaybackSettings::DESPAWN.with_volume(Volume::Linear(volume_level)),
     ));
     // Also add shader eventually

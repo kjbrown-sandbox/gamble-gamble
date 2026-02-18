@@ -239,7 +239,10 @@ fn on_hit_observer(
 
 fn attack_cleanup_system(
     mut commands: Commands,
-    mut query: Query<(Entity, &AnimationState, &mut AnimationType), With<ActiveAttack>>,
+    // Without<Dying> is critical here: if an entity is dying, the death system will
+    // despawn it. If we also try to modify it, we race with the despawn and get
+    // "Entity despawned" errors when our deferred command runs after the despawn.
+    mut query: Query<(Entity, &AnimationState, &mut AnimationType), (With<ActiveAttack>, Without<Dying>)>,
 ) {
     for (entity, anim_state, mut animation_type) in query.iter_mut() {
         if anim_state.finished {
