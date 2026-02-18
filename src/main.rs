@@ -22,6 +22,7 @@ fn main() {
             save_load::SaveLoadPlugin,
             health::HealthPlugin,
             combat::CombatPlugin,
+            audio::AudioPlugin,
         ))
         // spawn_slimes needs three resources to exist first:
         //   - SpriteSheets (from animation::load_sprite_sheets)
@@ -111,6 +112,7 @@ fn kill_random_on_spacebar(keyboard: Res<ButtonInput<KeyCode>>, mut query: Query
 
 mod animation;
 mod armies;
+mod audio;
 mod combat;
 mod health;
 mod movement;

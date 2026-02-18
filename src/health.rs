@@ -5,6 +5,7 @@ use rand::seq::IteratorRandom;
 
 use crate::{
     animation::{AnimationState, AnimationType},
+    audio::GameAudio,
     movement::{Speed, TargetEntity},
 };
 
@@ -97,7 +98,11 @@ pub fn on_damaged_event(
     trigger: On<DamagedEvent>,
     mut commands: Commands,
     mut query: Query<&mut Health>,
+    audio: Res<GameAudio>,
 ) {
-    // do nothing currently, but play hurt sfx here when I add audio
+    commands.spawn((
+        AudioPlayer::new(audio.slime_damage_sound.clone()),
+        //   PlaybackSettings::DESPAWN.with_volume(Volume::Linear(volume_level)),
+    ));
     // Also add shader eventually
 }
