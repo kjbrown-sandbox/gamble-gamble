@@ -15,7 +15,10 @@ pub struct SpawnSlimesPlugin;
 impl Plugin for SpawnSlimesPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup_slime_spawn_system)
-            .add_systems(Update, spawn_slimes_system);
+            .add_systems(
+                Update,
+                spawn_slimes_system.run_if(resource_exists::<SlimeSpawnTimer>),
+            );
     }
 }
 
@@ -47,56 +50,68 @@ fn setup_slime_spawn_system(mut commands: Commands, save_data: Res<SaveData>) {
 // Start with just spawning for now
 fn spawn_slimes_system(
     mut commands: Commands,
-    slimes_to_spawn: ResMut<SlimesToSpawn>,
+    mut slimes_to_spawn: ResMut<SlimesToSpawn>,
     mut timer: ResMut<SlimeSpawnTimer>,
     game_time: Res<Time>,
 ) {
     let mut rng = rand::thread_rng();
 
     if timer.0.just_finished() {
-        let x = rng.gen_range(-500.0..-100.0);
-        let y = rng.gen_range(-300.0..300.0);
-        commands.spawn((
-            AnimationType::SlimeJumpIdle,
-            Transform::from_xyz(x, y, 0.0),
-            Team::Player,
-            PickTargetStrategy::Close,
-            DeathAnimation(AnimationType::SlimeDeath),
-            Health(10),
-            Speed(125.0),
-            // KnownAttacks is the entity's "move list" — all attacks it can perform.
-            // pick_attack_system will choose from these based on distance to target.
-            KnownAttacks(vec![Attack {
-                animation: AnimationType::SlimeAttack,
-                hit_frame: 3, // damage lands on frame 3 of the attack animation
-                on_hit_effect: AttackEffect {
-                    damage: 2,
-                    knockback: 0.0,
-                },
-                range: 60.0, // must be >= 50.0 (movement stops at 50 units)
-            }]),
-        ));
+        if slimes_to_spawn.player_slimes > 0 {
+            let x = rng.gen_range(-500.0..-100.0);
+            let y = rng.gen_range(-300.0..300.0);
+            commands.spawn((
+                AnimationType::SlimeJumpIdle,
+                Transform::from_xyz(x, y, 0.0),
+                Team::Player,
+                PickTargetStrategy::Close,
+                DeathAnimation(AnimationType::SlimeDeath),
+                Health(10),
+                Speed(125.0),
+                // KnownAttacks is the entity's "move list" — all attacks it can perform.
+                // pick_attack_system will choose from these based on distance to target.
+                KnownAttacks(vec![Attack {
+                    animation: AnimationType::SlimeAttack,
+                    hit_frame: 3, // damage lands on frame 3 of the attack animation
+                    on_hit_effect: AttackEffect {
+                        damage: 2,
+                        knockback: 0.0,
+                    },
+                    range: 60.0, // must be >= 50.0 (movement stops at 50 units)
+                }]),
+            ));
 
-        let x = rng.gen_range(100.0..500.0);
-        let y = rng.gen_range(-300.0..300.0);
-        commands.spawn((
-            AnimationType::SlimeJumpIdle,
-            Transform::from_xyz(x, y, 0.0),
-            Team::Enemy,
-            PickTargetStrategy::Close,
-            DeathAnimation(AnimationType::SlimeDeath),
-            Health(10),
-            Speed(125.0),
-            KnownAttacks(vec![Attack {
-                animation: AnimationType::SlimeAttack,
-                hit_frame: 3,
-                on_hit_effect: AttackEffect {
-                    damage: 2,
-                    knockback: 0.0,
-                },
-                range: 60.0,
-            }]),
-        ));
+            slimes_to_spawn.player_slimes -= 1;
+        }
+
+        if slimes_to_spawn.enemy_slimes > 0 {
+            let x = rng.gen_range(100.0..500.0);
+            let y = rng.gen_range(-300.0..300.0);
+            commands.spawn((
+                AnimationType::SlimeJumpIdle,
+                Transform::from_xyz(x, y, 0.0),
+                Team::Enemy,
+                PickTargetStrategy::Close,
+                DeathAnimation(AnimationType::SlimeDeath),
+                Health(10),
+                Speed(125.0),
+                KnownAttacks(vec![Attack {
+                    animation: AnimationType::SlimeAttack,
+                    hit_frame: 3,
+                    on_hit_effect: AttackEffect {
+                        damage: 2,
+                        knockback: 0.0,
+                    },
+                    range: 60.0,
+                }]),
+            ));
+            slimes_to_spawn.enemy_slimes -= 1;
+        }
+    }
+
+    if slimes_to_spawn.player_slimes == 0 && slimes_to_spawn.enemy_slimes == 0 {
+        commands.remove_resource::<SlimeSpawnTimer>();
+        commands.remove_resource::<SlimesToSpawn>();
     }
 
     timer.0.tick(game_time.delta());
