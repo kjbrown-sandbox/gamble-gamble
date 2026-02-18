@@ -65,7 +65,6 @@ pub fn when_starts_dying_system(
 
     for (mut current_animation, death_animation) in query.iter_mut() {
         *current_animation = death_animation.0;
-        //  commands.entity(entity).insert(DeathAnimation(*death_animation));
     }
 
     for entity in dying_with_speed.iter() {

@@ -14,15 +14,16 @@ fn main() {
     App::new()
         .add_plugins((
             DefaultPlugins,
+            save_load::SaveLoadPlugin,
+            audio::AudioPlugin,
             animation::AnimationPlugin,
+            render::RenderPlugin,
             armies::ArmiesPlugin,
             movement::MovementPlugin,
             pick_target::PickTargetPlugin,
-            render::RenderPlugin,
-            save_load::SaveLoadPlugin,
             health::HealthPlugin,
             combat::CombatPlugin,
-            audio::AudioPlugin,
+            spawn_slimes::SpawnSlimesPlugin,
         ))
         // spawn_slimes needs three resources to exist first:
         //   - SpriteSheets (from animation::load_sprite_sheets)
@@ -41,59 +42,59 @@ fn main() {
 /// Note: we take Res<T> (immutable reference) since we only need to read these.
 /// If we needed to modify them, we'd use ResMut<T>.
 fn spawn_slimes(mut commands: Commands, save_data: Res<SaveData>, enemy_armies: Res<EnemyArmies>) {
-    let mut rng = rand::thread_rng();
+    //  let mut rng = rand::thread_rng();
 
-    // Player army — count comes from the save file
-    for _ in 0..save_data.slime_count {
-        let x = rng.gen_range(-500.0..-100.0);
-        let y = rng.gen_range(-300.0..300.0);
-        commands.spawn((
-            AnimationType::SlimeJumpIdle,
-            Transform::from_xyz(x, y, 0.0),
-            Team::Player,
-            PickTargetStrategy::Close,
-            DeathAnimation(AnimationType::SlimeDeath),
-            Health(10),
-            Speed(125.0),
-            // KnownAttacks is the entity's "move list" — all attacks it can perform.
-            // pick_attack_system will choose from these based on distance to target.
-            KnownAttacks(vec![Attack {
-                animation: AnimationType::SlimeAttack,
-                hit_frame: 3, // damage lands on frame 3 of the attack animation
-                on_hit_effect: AttackEffect {
-                    damage: 2,
-                    knockback: 0.0,
-                },
-                range: 60.0, // must be >= 50.0 (movement stops at 50 units)
-            }]),
-        ));
-    }
+    //  // Player army — count comes from the save file
+    //  for _ in 0..save_data.slime_count {
+    //      let x = rng.gen_range(-500.0..-100.0);
+    //      let y = rng.gen_range(-300.0..300.0);
+    //      commands.spawn((
+    //          AnimationType::SlimeJumpIdle,
+    //          Transform::from_xyz(x, y, 0.0),
+    //          Team::Player,
+    //          PickTargetStrategy::Close,
+    //          DeathAnimation(AnimationType::SlimeDeath),
+    //          Health(10),
+    //          Speed(125.0),
+    //          // KnownAttacks is the entity's "move list" — all attacks it can perform.
+    //          // pick_attack_system will choose from these based on distance to target.
+    //          KnownAttacks(vec![Attack {
+    //              animation: AnimationType::SlimeAttack,
+    //              hit_frame: 3, // damage lands on frame 3 of the attack animation
+    //              on_hit_effect: AttackEffect {
+    //                  damage: 2,
+    //                  knockback: 0.0,
+    //              },
+    //              range: 60.0, // must be >= 50.0 (movement stops at 50 units)
+    //          }]),
+    //      ));
+    //  }
 
-    // Enemy army — use the first army definition for now.
-    // Later, which army you fight could depend on what stage/round you're on.
-    let enemy_army = &enemy_armies.armies[0];
-    for _ in 0..enemy_army.slime_count {
-        let x = rng.gen_range(100.0..500.0);
-        let y = rng.gen_range(-300.0..300.0);
-        commands.spawn((
-            AnimationType::SlimeJumpIdle,
-            Transform::from_xyz(x, y, 0.0),
-            Team::Enemy,
-            PickTargetStrategy::Close,
-            DeathAnimation(AnimationType::SlimeDeath),
-            Health(10),
-            Speed(125.0),
-            KnownAttacks(vec![Attack {
-                animation: AnimationType::SlimeAttack,
-                hit_frame: 3,
-                on_hit_effect: AttackEffect {
-                    damage: 2,
-                    knockback: 0.0,
-                },
-                range: 60.0,
-            }]),
-        ));
-    }
+    //  // Enemy army — use the first army definition for now.
+    //  // Later, which army you fight could depend on what stage/round you're on.
+    //  let enemy_army = &enemy_armies.armies[0];
+    //  for _ in 0..enemy_army.slime_count {
+    //      let x = rng.gen_range(100.0..500.0);
+    //      let y = rng.gen_range(-300.0..300.0);
+    //      commands.spawn((
+    //          AnimationType::SlimeJumpIdle,
+    //          Transform::from_xyz(x, y, 0.0),
+    //          Team::Enemy,
+    //          PickTargetStrategy::Close,
+    //          DeathAnimation(AnimationType::SlimeDeath),
+    //          Health(10),
+    //          Speed(125.0),
+    //          KnownAttacks(vec![Attack {
+    //              animation: AnimationType::SlimeAttack,
+    //              hit_frame: 3,
+    //              on_hit_effect: AttackEffect {
+    //                  damage: 2,
+    //                  knockback: 0.0,
+    //              },
+    //              range: 60.0,
+    //          }]),
+    //      ));
+    //  }
 
     commands.spawn(Camera2d);
 }
@@ -119,3 +120,4 @@ mod movement;
 mod pick_target;
 mod render;
 mod save_load;
+mod spawn_slimes;

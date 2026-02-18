@@ -5,7 +5,7 @@ pub struct SaveLoadPlugin;
 
 impl Plugin for SaveLoadPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, load_save_data);
+        app.add_systems(PreStartup, load_save_data);
     }
 }
 
@@ -39,9 +39,7 @@ pub struct SaveData {
 
 impl Default for SaveData {
     fn default() -> Self {
-        Self {
-            slime_count: 5,
-        }
+        Self { slime_count: 5 }
     }
 }
 
