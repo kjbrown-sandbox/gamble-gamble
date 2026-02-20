@@ -8,6 +8,7 @@ use crate::{
     movement::Speed,
     pick_target::{PickTargetStrategy, Team},
     save_load::SaveData,
+    setup_round::Inert,
 };
 
 pub struct SpawnSlimesPlugin;
@@ -79,6 +80,7 @@ fn spawn_slimes_system(
                     },
                     range: 60.0, // must be >= 50.0 (movement stops at 50 units)
                 }]),
+                Inert,
             ));
 
             slimes_to_spawn.player_slimes -= 1;
@@ -104,6 +106,7 @@ fn spawn_slimes_system(
                     },
                     range: 60.0,
                 }]),
+                Inert,
             ));
             slimes_to_spawn.enemy_slimes -= 1;
         }

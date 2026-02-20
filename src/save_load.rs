@@ -59,13 +59,9 @@ mod storage {
     use super::SaveData;
     use bevy::prelude::*;
 
-    /// Returns the path to the save file.
-    /// Uses the `dirs` crate to find the platform-appropriate data directory:
-    ///   - macOS:   ~/Library/Application Support/gamble-game-2/save.ron
-    ///   - Linux:   ~/.local/share/gamble-game-2/save.ron
-    ///   - Windows: C:\Users\<user>\AppData\Roaming\gamble-game-2\save.ron
+    /// Returns the path to the save file in the project root (save.ron).
     fn save_file_path() -> Option<std::path::PathBuf> {
-        dirs::data_dir().map(|dir| dir.join("gamble-game-2").join("save.ron"))
+        Some(std::path::PathBuf::from("save.ron"))
     }
 
     /// Reads SaveData from the filesystem, or returns None if no save exists.

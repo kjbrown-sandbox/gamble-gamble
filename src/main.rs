@@ -23,6 +23,7 @@ fn main() {
             pick_target::PickTargetPlugin,
             health::HealthPlugin,
             combat::CombatPlugin,
+            setup_round::SetupRoundPlugin,
             spawn_slimes::SpawnSlimesPlugin,
             shaders_lite::ShadersLitePlugin,
         ))
@@ -122,4 +123,5 @@ mod pick_target;
 mod render;
 mod save_load;
 mod shaders_lite;
+mod setup_round;
 mod spawn_slimes;

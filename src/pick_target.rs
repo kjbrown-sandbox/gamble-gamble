@@ -4,6 +4,7 @@ use bevy::{prelude::*, state::commands};
 use rand::seq::IteratorRandom;
 
 use crate::movement::TargetEntity;
+use crate::setup_round::Inert;
 
 pub struct PickTargetPlugin;
 
@@ -27,7 +28,7 @@ pub enum Team {
 pub fn pick_target_system(
     entities_needing_targets: Query<
         (Entity, &PickTargetStrategy, &Team, &Transform),
-        Without<TargetEntity>,
+        (Without<TargetEntity>, Without<Inert>),
     >,
     potential_targets: Query<(Entity, &Team, &Transform)>,
     mut commands: Commands,

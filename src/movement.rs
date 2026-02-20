@@ -2,6 +2,8 @@ use std::time;
 
 use bevy::prelude::*;
 
+use crate::setup_round::Inert;
+
 pub struct MovementPlugin;
 
 impl Plugin for MovementPlugin {
@@ -19,7 +21,7 @@ pub struct Speed(pub f32);
 
 pub fn move_to_target_system(
     mut params: ParamSet<(
-        Query<(Entity, &mut Transform, &TargetEntity, &Speed)>,
+        Query<(Entity, &mut Transform, &TargetEntity, &Speed), Without<Inert>>,
         Query<&Transform>,
     )>,
     mut commands: Commands,
