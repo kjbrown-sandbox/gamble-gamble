@@ -4,11 +4,10 @@ pub struct SetupRoundPlugin;
 
 impl Plugin for SetupRoundPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, start_pre_game_timer)
-            .add_systems(
-                Update,
-                pre_game_timer_system.run_if(resource_exists::<PreGameTimer>),
-            );
+        app.add_systems(Startup, start_pre_game_timer).add_systems(
+            Update,
+            pre_game_timer_system.run_if(resource_exists::<PreGameTimer>),
+        );
     }
 }
 
@@ -23,7 +22,7 @@ pub struct Inert;
 struct PreGameTimer(Timer);
 
 fn start_pre_game_timer(mut commands: Commands) {
-    commands.insert_resource(PreGameTimer(Timer::from_seconds(3.0, TimerMode::Once)));
+    commands.insert_resource(PreGameTimer(Timer::from_seconds(2.0, TimerMode::Once)));
 }
 
 fn pre_game_timer_system(
