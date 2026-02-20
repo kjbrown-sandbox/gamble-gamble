@@ -1,9 +1,5 @@
 use bevy::prelude::*;
 
-use crate::pick_target::Team;
-use crate::setup_round::PreGameTimer;
-use crate::sprite_modifications;
-
 pub struct SpriteModificationsPlugin;
 
 impl Plugin for SpriteModificationsPlugin {
@@ -24,26 +20,29 @@ pub enum LerpType {
 
 fn modify_sprite_system(
     mut commands: Commands,
-    mut sprite_modifications: Query<(Entity, &Sprite, &mut SpriteModification)>,
-    game_time: Res<Time>,
+    mut query: Query<(Entity, &mut Transform, &mut SpriteModification)>,
+    time: Res<Time>,
 ) {
-    let total_animation_time = 1.0;
-    for (entity, mut sprite, mut modification) in sprite_modifications.iter_mut() {
-        modification.timer.tick(game_time.delta());
+    for (entity, mut transform, mut modification) in query.iter_mut() {
+        modification.timer.tick(time.delta());
 
         if modification.timer.just_finished() {
-            // Animation is done — remove the component to stop the system from running for this entity
+            // Snap to exact final scale and remove the component
+            transform.scale = Vec3::splat(1.0);
             commands.entity(entity).remove::<SpriteModification>();
         } else {
-            // Animation is still in progress — calculate the current lerp value based on the timer
             let t = modification.timer.fraction();
-            match modification.lerp {
+            let scale = match modification.lerp {
                 LerpType::EaseInOut => {
+                    // BackOut overshoots past 1.0 then settles back.
+                    // Lerp from 25% to 100% — the overshoot makes it
+                    // temporarily exceed 100% before landing exactly there.
                     let eased_t = EaseFunction::BackOut.sample_clamped(t);
-                    sprite.custom_size = Some(Vec2::splat(1.0 + 0.5 * eased_t));
-                    // Example: scale from 1.0 to 1.5
+                    0.25 + (1.0 - 0.25) * eased_t
                 }
-            }
+            };
+
+            transform.scale = Vec3::splat(scale);
         }
     }
 }

@@ -9,6 +9,7 @@ use crate::{
     pick_target::{PickTargetStrategy, Team},
     save_load::SaveData,
     setup_round::Inert,
+    sprite_modifications::{LerpType, SpriteModification},
 };
 
 pub struct SpawnSlimesPlugin;
@@ -81,6 +82,10 @@ fn spawn_slimes_system(
                     range: 60.0, // must be >= 50.0 (movement stops at 50 units)
                 }]),
                 Inert,
+                SpriteModification {
+                    lerp: LerpType::EaseInOut,
+                    timer: Timer::from_seconds(2.0, TimerMode::Once),
+                },
             ));
 
             slimes_to_spawn.player_slimes -= 1;
@@ -107,6 +112,10 @@ fn spawn_slimes_system(
                     range: 60.0,
                 }]),
                 Inert,
+                SpriteModification {
+                    lerp: LerpType::EaseInOut,
+                    timer: Timer::from_seconds(2.0, TimerMode::Once),
+                },
             ));
             slimes_to_spawn.enemy_slimes -= 1;
         }
