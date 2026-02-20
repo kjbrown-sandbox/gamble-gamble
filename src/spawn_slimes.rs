@@ -84,7 +84,7 @@ fn spawn_slimes_system(
                 Inert,
                 SpriteModification {
                     lerp: LerpType::EaseInOut,
-                    timer: Timer::from_seconds(2.0, TimerMode::Once),
+                    timer: Timer::from_seconds(3.0, TimerMode::Once),
                 },
             ));
 
@@ -114,7 +114,7 @@ fn spawn_slimes_system(
                 Inert,
                 SpriteModification {
                     lerp: LerpType::EaseInOut,
-                    timer: Timer::from_seconds(2.0, TimerMode::Once),
+                    timer: Timer::from_seconds(3.0, TimerMode::Once),
                 },
             ));
             slimes_to_spawn.enemy_slimes -= 1;

@@ -37,7 +37,7 @@ fn modify_sprite_system(
                     // BackOut overshoots past 1.0 then settles back.
                     // Lerp from 25% to 100% — the overshoot makes it
                     // temporarily exceed 100% before landing exactly there.
-                    let eased_t = EaseFunction::BackOut.sample_clamped(t);
+                    let eased_t = EaseFunction::ElasticOut.sample_clamped(t);
                     0.25 + (1.0 - 0.25) * eased_t
                 }
             };
