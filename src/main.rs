@@ -23,6 +23,7 @@ fn main() {
             pick_target::PickTargetPlugin,
             health::HealthPlugin,
             combat::CombatPlugin,
+            end_round::EndRoundPlugin,
             setup_round::SetupRoundPlugin,
             spawn_slimes::SpawnSlimesPlugin,
             shaders_lite::ShadersLitePlugin,
@@ -113,6 +114,7 @@ fn kill_random_on_spacebar(keyboard: Res<ButtonInput<KeyCode>>, mut query: Query
     }
 }
 
+mod end_round;
 mod animation;
 mod armies;
 mod audio;

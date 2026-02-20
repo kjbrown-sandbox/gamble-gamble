@@ -19,7 +19,7 @@ pub struct Inert;
 /// Resource that counts down the pre-game pause before combat begins.
 /// Once it expires, it removes itself and strips Inert from every entity.
 #[derive(Resource)]
-struct PreGameTimer(Timer);
+pub struct PreGameTimer(Timer);
 
 fn start_pre_game_timer(mut commands: Commands) {
     commands.insert_resource(PreGameTimer(Timer::from_seconds(2.0, TimerMode::Once)));
