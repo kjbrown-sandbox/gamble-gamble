@@ -27,6 +27,7 @@ fn main() {
             setup_round::SetupRoundPlugin,
             spawn_slimes::SpawnSlimesPlugin,
             shaders_lite::ShadersLitePlugin,
+            sprite_modifications::SpriteModificationsPlugin,
         ))
         // spawn_slimes needs three resources to exist first:
         //   - SpriteSheets (from animation::load_sprite_sheets)
@@ -114,16 +115,17 @@ fn kill_random_on_spacebar(keyboard: Res<ButtonInput<KeyCode>>, mut query: Query
     }
 }
 
-mod end_round;
 mod animation;
 mod armies;
 mod audio;
 mod combat;
+mod end_round;
 mod health;
 mod movement;
 mod pick_target;
 mod render;
 mod save_load;
-mod shaders_lite;
 mod setup_round;
+mod shaders_lite;
 mod spawn_slimes;
+mod sprite_modifications;
