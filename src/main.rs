@@ -24,6 +24,7 @@ fn main() {
             health::HealthPlugin,
             combat::CombatPlugin,
             spawn_slimes::SpawnSlimesPlugin,
+            shaders_lite::ShadersLitePlugin,
         ))
         // spawn_slimes needs three resources to exist first:
         //   - SpriteSheets (from animation::load_sprite_sheets)
@@ -120,4 +121,5 @@ mod movement;
 mod pick_target;
 mod render;
 mod save_load;
+mod shaders_lite;
 mod spawn_slimes;

@@ -7,6 +7,7 @@ use crate::{
     animation::{AnimationState, AnimationType},
     audio::GameAudio,
     movement::{Speed, TargetEntity},
+    shaders_lite::DamageTint,
 };
 
 pub struct HealthPlugin;
@@ -101,12 +102,18 @@ pub struct DamagedEvent {
 pub fn on_damaged_event(
     trigger: On<DamagedEvent>,
     mut commands: Commands,
-    mut query: Query<&mut Health>,
+    mut query: Query<(Entity)>,
     audio: Res<GameAudio>,
 ) {
     commands.spawn((
         AudioPlayer::new(audio.slime_damage.clone()),
         //   PlaybackSettings::DESPAWN.with_volume(Volume::Linear(volume_level)),
     ));
+
+    if let Ok((entity)) = query.get(trigger.entity) {
+        commands.entity(entity).insert(DamageTint {
+            0: Timer::from_seconds(0.08, TimerMode::Once),
+        });
+    }
     // Also add shader eventually
 }
