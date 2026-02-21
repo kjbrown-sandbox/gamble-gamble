@@ -19,6 +19,8 @@ pub struct GameAudio {
     pub merge_complete: Handle<AudioSource>,
     /// Icy/frozen sound that plays when a target gets stunned.
     pub stun: Handle<AudioSource>,
+    /// Sound that plays when a shield blocks an incoming attack.
+    pub block: Handle<AudioSource>,
 }
 
 pub fn setup_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -29,6 +31,7 @@ pub fn setup_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
     let merge_alert_sound = asset_server.load("audio/beepbee.wav");
     let merge_complete_sound = asset_server.load("audio/Callsummon.wav");
     let stun_sound = asset_server.load("audio/monsterdestroyed.wav");
+    let block_sound = asset_server.load("audio/Shock.wav");
 
     commands.insert_resource(GameAudio {
         slime_damage: damage_sound,
@@ -36,5 +39,6 @@ pub fn setup_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
         merge_alert: merge_alert_sound,
         merge_complete: merge_complete_sound,
         stun: stun_sound,
+        block: block_sound,
     });
 }

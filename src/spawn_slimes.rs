@@ -3,7 +3,7 @@ use rand::Rng;
 
 use crate::{
     animation::{AnimationType, IdleAnimation, VictoryAnimation},
-    combat::{Attack, AttackEffect, KnownAttacks},
+    combat::{Attack, AttackEffect, BlockChance, KnownAttacks, Shield},
     health::{DeathAnimation, Health},
     movement::Speed,
     pick_target::{PickTargetStrategy, Team},
@@ -200,23 +200,20 @@ fn spawn_tank_slime(commands: &mut Commands, team: Team) -> Entity {
         range: 65.0,
     }]));
 
-    commands.entity(entity).insert(Health(20)).with_child((
-        AnimationType::IcebergIdle,
-        Transform::from_xyz(shield_x, -20.0, 1.0).with_scale(Vec3::splat(3.0)),
-        Sprite {
-            flip_x: team == Team::Enemy,
-            ..default()
-        },
-    ));
+    // BlockChance is on the parent slime (the defender), not the shield child.
+    commands
+        .entity(entity)
+        .insert((Health(20), BlockChance(1.0))) // 100% block for now
+        .with_child((
+            // Shield marker lets on_block_attack_observer find this specific child
+            Shield,
+            AnimationType::IcebergIdle,
+            Transform::from_xyz(shield_x, -20.0, 1.0).with_scale(Vec3::splat(3.0)),
+            Sprite {
+                flip_x: team == Team::Enemy,
+                ..default()
+            },
+        ));
 
     entity
-
-    /*
-     TODO:
-     replace attacks with tank specific attacks
-     will need to add stun chance to attack
-     will need to add block chance from target enemy
-     - should play sound when blocks
-     - should play animation/shader when shield blocks
-    */
 }

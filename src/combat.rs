@@ -7,6 +7,7 @@ use crate::{
     health::{DamagedEvent, Dying, Health},
     movement::TargetEntity,
     setup_round::{Inert, StunTimer},
+    shaders_lite::Flash,
     special_abilities::Merging,
 };
 
@@ -16,6 +17,7 @@ impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(on_hit_observer);
         app.add_observer(on_stunned_observer);
+        app.add_observer(on_block_attack_observer);
 
         // Chain these systems so they run in order within a single frame.
         // The data flows like a pipeline:
@@ -137,6 +139,27 @@ pub struct StunnedEvent {
 #[derive(Component)]
 pub struct IceImpactVfx;
 
+/// Chance (0.0–1.0) that an incoming attack is completely blocked.
+/// When a block succeeds, the attack deals no damage, no knockback, no stun —
+/// the entire OnHitEvent is cancelled via early return.
+///
+/// This is a component on the *defender*, not the attacker. It's the defender's
+/// passive ability: "I have a shield that might block your hit."
+#[derive(Component)]
+pub struct BlockChance(pub f32);
+
+/// Marker component for the shield child entity (e.g., the iceberg sprite).
+/// The on_block_attack_observer uses this to find the shield and flash it white.
+#[derive(Component)]
+pub struct Shield;
+
+/// Fired when an attack is blocked. The on_block_attack_observer reacts to this
+/// by flashing the shield white and playing a block sound.
+#[derive(Event)]
+pub struct BlockedAttackEvent {
+    pub defender: Entity,
+}
+
 // ── Systems ─────────────────────────────────────────────────────────────────
 /// Picks an attack for entities that are in range of their target but not already attacking.
 /// Without<Inert> is added here so stunned entities can't start new attacks.
@@ -227,11 +250,20 @@ fn hit_frame_check_system(
 /// ParamSet is still needed here because we read the attacker's Transform (p0)
 /// and mutate the target's Health + Transform + AnimationState (p1). Both touch Transform,
 /// so Bevy won't allow two overlapping queries without ParamSet.
+///
+/// Option<&BlockChance> in p1 lets us read BlockChance when it exists without
+/// excluding entities that don't have it. This is a common Bevy pattern for
+/// "check if this optional component is present" inside a query.
 fn on_hit_observer(
     trigger: On<OnHitEvent>,
     mut params: ParamSet<(
         Query<&Transform>, // p0: read attacker position
-        Query<(&mut Health, &mut Transform, &mut AnimationState)>, // p1: mutate target
+        Query<(
+            &mut Health,
+            &mut Transform,
+            &mut AnimationState,
+            Option<&BlockChance>, // None for entities without a shield
+        )>, // p1: mutate target
     )>,
     mut commands: Commands,
 ) {
@@ -246,7 +278,24 @@ fn on_hit_observer(
     };
 
     // Now use p1 to mutate the target's health, position, and animation state.
-    if let Ok((mut health, mut transform, mut anim_state)) = params.p1().get_mut(trigger.target) {
+    if let Ok((mut health, mut transform, mut anim_state, block_chance)) =
+        params.p1().get_mut(trigger.target)
+    {
+        // Check for block BEFORE applying any damage.
+        // If the target has a BlockChance component, roll against it.
+        // A successful block cancels the entire attack — no damage, no
+        // knockback, no stun. We trigger BlockedAttackEvent so the
+        // presentation observer can flash the shield and play a sound.
+        if let Some(block_chance) = block_chance {
+            let mut rng = rand::thread_rng();
+            if rng.gen::<f32>() < block_chance.0 {
+                commands.trigger(BlockedAttackEvent {
+                    defender: trigger.target,
+                });
+                return; // Attack fully cancelled — nothing else happens
+            }
+        }
+
         // Apply damage
         if health.0 > 0 {
             health.0 -= trigger.effect.damage;
@@ -381,6 +430,45 @@ fn on_stunned_observer(trigger: On<StunnedEvent>, audio: Res<GameAudio>, mut com
             AnimationType::IceImpact,
             Transform::from_xyz(0.0, 0.0, 2.0).with_scale(Vec3::splat(3.0)),
         ));
+    }
+}
+
+/// Observer that reacts to BlockedAttackEvent by flashing the shield white
+/// and playing a block sound. This is purely presentation — the game logic
+/// (cancelling the attack) already happened in on_hit_observer's early return.
+///
+/// To find the shield, we iterate the defender's Children and check which one
+/// has the Shield marker component. This is a standard Bevy pattern for
+/// "find a specific child of an entity" — you can't query parent-child
+/// relationships directly, so you walk the Children list and check each one.
+fn on_block_attack_observer(
+    trigger: On<BlockedAttackEvent>,
+    children_query: Query<&Children>,
+    shield_query: Query<Entity, With<Shield>>,
+    audio: Res<GameAudio>,
+    mut commands: Commands,
+) {
+    // Play block sound
+    commands.spawn((
+        AudioPlayer::new(audio.block.clone()),
+        PlaybackSettings::DESPAWN,
+    ));
+
+    // Get the children of the defender
+    let Ok(children) = children_query.get(trigger.defender) else {
+        return;
+    };
+
+    for child in children.iter() {
+        // get() returns Ok(Entity) if this child has the Shield component.
+        // We feed that directly into get_entity() to get commands for it.
+        // This collapses "does it have Shield?" and "give me commands for it"
+        // into a single chain instead of two nested if-lets.
+        if let Ok(shield_entity) = shield_query.get(child) {
+            if let Ok(mut shield_commands) = commands.get_entity(shield_entity) {
+                shield_commands.insert(Flash(Timer::from_seconds(0.08, TimerMode::Once)));
+            }
+        }
     }
 }
 
