@@ -1,8 +1,9 @@
-use bevy::prelude::*;
+use bevy::{audio::Volume, prelude::*};
 use rand::Rng;
 
 use crate::{
-    animation::AnimationType,
+    animation::{AnimationState, AnimationType, SpriteSheets},
+    audio::GameAudio,
     combat::{ActiveAttack, Attack, AttackEffect, KnownAttacks},
     health::{DeathAnimation, Dying, Health},
     movement::{Speed, TargetEntity},
@@ -195,8 +196,45 @@ fn check_merge_system(
     }
 }
 
-fn on_add_pre_merge_system(mut commands: Commands, query: Query<Entity, Added<PreMerging>>) {
-    for entity in &query {
+fn on_add_pre_merge_system(
+    mut commands: Commands,
+    mut query: Query<(Entity, &Team, &mut Sprite, &mut AnimationState), Added<PreMerging>>,
+    sprite_sheets: Res<SpriteSheets>,
+    audio: Res<GameAudio>,
+) {
+    for (entity, team, mut sprite, mut anim_state) in &mut query {
+        commands.spawn((
+            AudioPlayer::new(audio.merge_alert.clone()),
+            PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.5)),
+        ));
+
+        // Switch to frame 0 of SlimeMoveSmallJump and freeze there.
+        // We manually set the sprite rather than changing AnimationType because
+        // the entity might already be on SlimeMoveSmallJump (its default idle),
+        // and setting it to the same value wouldn't trigger Changed<AnimationType>.
+        let image = match team {
+            Team::Player => sprite_sheets.slime_move_small_jump.clone(),
+            Team::Enemy => sprite_sheets.enemy_slime_move_small_jump.clone(),
+        };
+        sprite.image = image;
+        sprite.texture_atlas = Some(TextureAtlas {
+            layout: sprite_sheets.move_small_jump_layout.clone(),
+            index: 0,
+        });
+
+        // Freeze the animation at frame 0 so animation_system doesn't advance it
+        // for the remainder of this frame (commands are deferred, but these direct
+        // mutations take effect immediately).
+        anim_state.frame_index = 0;
+        anim_state.finished = true;
+
+        // Then fully remove AnimationState — the entity should have no running
+        // animation during the pre-merge "surprise" phase. This command takes
+        // effect at the end of the frame, after the immediate mutations above
+        // have already prevented any same-frame advancement.
+        commands.entity(entity).remove::<AnimationState>();
+
+        // Spawn "!" text above the slime to visually indicate the merge alert
         commands.entity(entity).with_children(|parent| {
             parent.spawn((
                 Text2d::new("!"),
@@ -205,7 +243,6 @@ fn on_add_pre_merge_system(mut commands: Commands, query: Query<Entity, Added<Pr
                     ..default()
                 },
                 TextColor(Color::WHITE),
-                // Offset upward above the slime's sprite
                 Transform::from_xyz(0.0, 60.0, 1.0),
             ));
         });
@@ -222,6 +259,8 @@ fn pre_merge_system(
     // This prevents the crash: without it, commands.entity(dead_partner) panics.
     alive_check: Query<Entity, Without<Dying>>,
     time: Res<Time>,
+    sprite_sheets: Res<SpriteSheets>,
+    layouts: Res<Assets<TextureAtlasLayout>>,
 ) {
     for (entity, mut pre_merging) in query.iter_mut() {
         pre_merging.timer.tick(time.delta());
@@ -237,6 +276,22 @@ fn pre_merge_system(
         if pre_merging.timer.is_finished() {
             let partner = pre_merging.partner;
             let meeting_point = pre_merging.meeting_point;
+
+            // Re-insert AnimationState to restart the SlimeMoveSmallJump animation.
+            // We removed AnimationState when PreMerging started (to freeze on frame 0).
+            // Now the slime needs to animate again as it walks to the meeting point.
+            // The sprite image/layout was already set correctly in on_add_pre_merge_system,
+            // so we only need to restore the AnimationState — no need to touch the sprite.
+            let total_frames = layouts
+                .get(&sprite_sheets.move_small_jump_layout)
+                .unwrap()
+                .len();
+            commands
+                .entity(entity)
+                .insert(AnimationState::new(0.1, total_frames, true));
+            commands
+                .entity(partner)
+                .insert(AnimationState::new(0.1, total_frames, true));
 
             // Swap PreMerging → Merging on THIS entity
             commands.entity(entity).remove::<PreMerging>();
@@ -300,6 +355,7 @@ fn merge_walk_system(
 fn execute_merge_system(
     query: Query<(Entity, &Merging, &Transform, &Team), Without<Dying>>,
     mut commands: Commands,
+    audio: Res<GameAudio>,
 ) {
     // Track which entities we've already processed this frame to avoid
     // trying to despawn the same entity twice (both partners would match).
@@ -322,6 +378,10 @@ fn execute_merge_system(
         if distance > 40.0 {
             continue;
         }
+
+        // Play merge-complete sound. This only fires once per pair because
+        // the already_merged check prevents processing the partner again.
+        commands.spawn(AudioPlayer::new(audio.merge_complete.clone()));
 
         // Merge! Despawn both originals and spawn the new merged slime.
         let midpoint = (transform.translation + partner_transform.translation) / 2.0;

@@ -82,7 +82,10 @@ pub fn move_to_target_system(
 /// merge partner. Without this filter, unsmush would push them apart as they
 /// try to converge, creating a tug-of-war between the two systems.
 pub fn unsmush_system(
-    mut query: Query<(Entity, &mut Transform), (With<Sprite>, Without<Merging>)>,
+    mut query: Query<
+        (Entity, &mut Transform),
+        (With<Sprite>, Without<Merging>, Without<PreMerging>),
+    >,
     time: Res<Time>,
 ) {
     let min_x_distance = 50.0;
