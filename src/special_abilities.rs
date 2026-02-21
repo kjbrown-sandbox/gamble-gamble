@@ -274,23 +274,33 @@ fn execute_merge_system(
         //
         // No SpriteModification (the spawn scale animation targets 1.0, which would
         // fight our 2x scale). No Inert either — it spawns ready to fight.
+        // Pick the correct big slime animation variants based on team
+        let (big_idle, big_attack, big_death) = match team {
+            Team::Player => (
+                AnimationType::BigSlimeJumpIdle,
+                AnimationType::BigSlimeAttack,
+                AnimationType::BigSlimeDeath,
+            ),
+            Team::Enemy => (
+                AnimationType::EnemyBigSlimeJumpIdle,
+                AnimationType::EnemyBigSlimeAttack,
+                AnimationType::EnemyBigSlimeDeath,
+            ),
+        };
+
         commands.spawn((
-            AnimationType::BigSlimeJumpIdle,
+            big_idle,
             Transform::from_translation(midpoint).with_scale(Vec3::splat(merged_scale)),
             *team,
             PickTargetStrategy::Close,
-            Sprite {
-                flip_y: *team == Team::Enemy,
-                ..default()
-            },
-            DeathAnimation(AnimationType::BigSlimeDeath),
+            DeathAnimation(big_death),
             // 4x health of a normal slime (normal = 10)
             Health(40),
             // Same movement speed — the "lumbering" look comes from the slower animation
             Speed(125.0),
             // 4x damage of a normal slime (normal = 2), same range
             KnownAttacks(vec![Attack {
-                animation: AnimationType::BigSlimeAttack,
+                animation: big_attack,
                 hit_frame: 3,
                 on_hit_effect: AttackEffect {
                     damage: 8,

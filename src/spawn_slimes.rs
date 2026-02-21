@@ -91,22 +91,35 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team) {
         Team::Enemy => 2,
     };
 
-    let player_animation_idle = AnimationType::SlimeMoveSmallJump;
+    // Pick the correct animation variants based on team
+    let (idle_anim, attack_anim, death_anim) = match team {
+        Team::Player => (
+            AnimationType::SlimeMoveSmallJump,
+            AnimationType::SlimeAttack,
+            AnimationType::SlimeDeath,
+        ),
+        Team::Enemy => (
+            AnimationType::EnemySlimeMoveSmallJump,
+            AnimationType::EnemySlimeAttack,
+            AnimationType::EnemySlimeDeath,
+        ),
+    };
+
     commands.spawn((
-        player_animation_idle,
+        idle_anim,
         Transform::from_xyz(x, y, 0.0).with_scale(Vec3::splat(scale as f32)),
         team,
         PickTargetStrategy::Close,
         Sprite {
-            flip_y: team == Team::Enemy,
+            flip_x: team == Team::Enemy, // Flip enemy slimes to face left
             ..default()
         },
-        DeathAnimation(AnimationType::SlimeDeath),
+        DeathAnimation(death_anim),
         Health(10),
         Speed(125.0),
         KnownAttacks(vec![Attack {
-            animation: AnimationType::SlimeAttack,
-            hit_frame: 3, // damage lands on frame 3 of the attack animation
+            animation: attack_anim,
+            hit_frame: 3,
             on_hit_effect: AttackEffect {
                 damage: 2,
                 knockback: 0.0,

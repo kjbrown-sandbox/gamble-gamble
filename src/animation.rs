@@ -24,6 +24,16 @@ pub enum AnimationType {
     BigSlimeJumpIdle,
     BigSlimeAttack,
     BigSlimeDeath,
+    // Red variants for enemy slimes — same frame counts and timing,
+    // just different sprite sheet images (hue-shifted to purple/red).
+    EnemySlimeJumpIdle,
+    EnemySlimeAttack,
+    EnemySlimeMoveSmallJump,
+    EnemySlimeHurt,
+    EnemySlimeDeath,
+    EnemyBigSlimeJumpIdle,
+    EnemyBigSlimeAttack,
+    EnemyBigSlimeDeath,
 }
 
 fn default_animated_sprite() -> Sprite {
@@ -52,6 +62,13 @@ pub struct SpriteSheets {
     pub slime_move_small_jump: Handle<Image>,
     pub slime_hurt: Handle<Image>,
     pub slime_death: Handle<Image>,
+
+    // Red/enemy variants — same layouts, different images
+    pub enemy_slime_jump_idle: Handle<Image>,
+    pub enemy_slime_attack: Handle<Image>,
+    pub enemy_slime_move_small_jump: Handle<Image>,
+    pub enemy_slime_hurt: Handle<Image>,
+    pub enemy_slime_death: Handle<Image>,
 
     pub jump_idle_layout: Handle<TextureAtlasLayout>,
     pub attack_layout: Handle<TextureAtlasLayout>,
@@ -207,6 +224,80 @@ pub fn switch_animation_system(
                     false,
                 );
             }
+            // Enemy (red) variants — same layouts and timing as their green counterparts,
+            // just swapping the image handle for the red sprite sheet.
+            AnimationType::EnemySlimeJumpIdle => {
+                sprite.image = sprite_sheets.enemy_slime_jump_idle.clone();
+                wip_texture_atlas.layout = sprite_sheets.jump_idle_layout.clone();
+                *anim_state = AnimationState::new(
+                    0.1,
+                    assets.get(&sprite_sheets.jump_idle_layout).unwrap().len(),
+                    true,
+                );
+            }
+            AnimationType::EnemySlimeAttack => {
+                sprite.image = sprite_sheets.enemy_slime_attack.clone();
+                wip_texture_atlas.layout = sprite_sheets.attack_layout.clone();
+                *anim_state = AnimationState::new(
+                    0.1,
+                    assets.get(&sprite_sheets.attack_layout).unwrap().len(),
+                    false,
+                );
+            }
+            AnimationType::EnemySlimeMoveSmallJump => {
+                sprite.image = sprite_sheets.enemy_slime_move_small_jump.clone();
+                wip_texture_atlas.layout = sprite_sheets.move_small_jump_layout.clone();
+                *anim_state = AnimationState::new(
+                    0.1,
+                    assets.get(&sprite_sheets.move_small_jump_layout).unwrap().len(),
+                    true,
+                );
+            }
+            AnimationType::EnemySlimeHurt => {
+                sprite.image = sprite_sheets.enemy_slime_hurt.clone();
+                wip_texture_atlas.layout = sprite_sheets.hurt_layout.clone();
+                *anim_state = AnimationState::new(
+                    0.1,
+                    assets.get(&sprite_sheets.hurt_layout).unwrap().len(),
+                    false,
+                );
+            }
+            AnimationType::EnemySlimeDeath => {
+                sprite.image = sprite_sheets.enemy_slime_death.clone();
+                wip_texture_atlas.layout = sprite_sheets.death_layout.clone();
+                *anim_state = AnimationState::new(
+                    0.1,
+                    assets.get(&sprite_sheets.death_layout).unwrap().len(),
+                    false,
+                );
+            }
+            AnimationType::EnemyBigSlimeJumpIdle => {
+                sprite.image = sprite_sheets.enemy_slime_jump_idle.clone();
+                wip_texture_atlas.layout = sprite_sheets.jump_idle_layout.clone();
+                *anim_state = AnimationState::new(
+                    0.2,
+                    assets.get(&sprite_sheets.jump_idle_layout).unwrap().len(),
+                    true,
+                );
+            }
+            AnimationType::EnemyBigSlimeAttack => {
+                sprite.image = sprite_sheets.enemy_slime_attack.clone();
+                wip_texture_atlas.layout = sprite_sheets.attack_layout.clone();
+                *anim_state = AnimationState::new(
+                    0.2,
+                    assets.get(&sprite_sheets.attack_layout).unwrap().len(),
+                    false,
+                );
+            }
+            AnimationType::EnemyBigSlimeDeath => {
+                sprite.image = sprite_sheets.enemy_slime_death.clone();
+                wip_texture_atlas.layout = sprite_sheets.death_layout.clone();
+                *anim_state = AnimationState::new(
+                    0.2,
+                    assets.get(&sprite_sheets.death_layout).unwrap().len(),
+                    false,
+                );
+            }
         }
         sprite.texture_atlas = Some(wip_texture_atlas);
     }
@@ -224,6 +315,18 @@ pub fn load_sprite_sheets(
         asset_server.load("sprites/slimes/Move-Small Jump/Slime_Move_Spritesheet.png");
     let slime_hurt = asset_server.load("sprites/slimes/Hurt/Slime_Hurt_Spritesheet.png");
     let slime_death = asset_server.load("sprites/slimes/Death/Slime_Death_Spritesheet.png");
+
+    // Red/enemy variants — same sprite sheets, hue-shifted to purple/red
+    let enemy_slime_jump_idle =
+        asset_server.load("sprites/slimes/Jump-Idle-Red/Slime_Jump_Spritesheet.png");
+    let enemy_slime_attack =
+        asset_server.load("sprites/slimes/Attack-Red/Slime_Attack_Spritesheet.png");
+    let enemy_slime_move_small_jump =
+        asset_server.load("sprites/slimes/Move-Small Jump-Red/Slime_Move_Spritesheet.png");
+    let enemy_slime_hurt =
+        asset_server.load("sprites/slimes/Hurt-Red/Slime_Hurt_Spritesheet.png");
+    let enemy_slime_death =
+        asset_server.load("sprites/slimes/Death-Red/Slime_Death_Spritesheet.png");
 
     // Create texture atlas layouts (define frame grid)
     let jump_idle_layout = texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
@@ -272,6 +375,12 @@ pub fn load_sprite_sheets(
         slime_move_small_jump,
         slime_hurt,
         slime_death,
+
+        enemy_slime_jump_idle,
+        enemy_slime_attack,
+        enemy_slime_move_small_jump,
+        enemy_slime_hurt,
+        enemy_slime_death,
 
         jump_idle_layout,
         attack_layout,
