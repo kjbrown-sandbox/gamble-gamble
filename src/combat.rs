@@ -5,6 +5,7 @@ use crate::{
     animation::{AnimationState, AnimationType},
     health::{DamagedEvent, Dying, Health},
     movement::TargetEntity,
+    pick_target::Team,
     special_abilities::{MergedSlime, Merging},
 };
 
@@ -249,19 +250,40 @@ fn attack_cleanup_system(
     // (None), we return to normal SlimeJumpIdle. This is a common ECS pattern:
     // optional components let one system handle multiple "types" of entities
     // without needing separate systems for each.
-    mut query: Query<(Entity, &AnimationState, &mut AnimationType, Option<&MergedSlime>), (With<ActiveAttack>, Without<Dying>)>,
+    mut query: Query<
+        (
+            Entity,
+            &AnimationState,
+            &mut AnimationType,
+            Option<&MergedSlime>,
+            &Team,
+        ),
+        (With<ActiveAttack>, Without<Dying>),
+    >,
 ) {
-    for (entity, anim_state, mut animation_type, merged) in query.iter_mut() {
+    for (entity, anim_state, mut animation_type, merged, team) in query.iter_mut() {
         if anim_state.finished {
             // Remove ActiveAttack so pick_attack_system can assign a new attack.
             commands.entity(entity).remove::<ActiveAttack>();
             // Go back to the appropriate idle animation.
             // Merged slimes use BigSlimeJumpIdle (0.3s frame rate) to keep
             // the lumbering look between attacks.
+            // *animation_type = if merged.is_some() {
+            //     AnimationType::BigSlimeJumpIdle
+            // } else {
+            //     if team
+            //     AnimationType::SlimeJumpIdle
+            // };
             *animation_type = if merged.is_some() {
-                AnimationType::BigSlimeJumpIdle
+                match team {
+                    Team::Player => AnimationType::BigSlimeJumpIdle,
+                    Team::Enemy => AnimationType::EnemyBigSlimeJumpIdle,
+                }
             } else {
-                AnimationType::SlimeJumpIdle
+                match team {
+                    Team::Player => AnimationType::SlimeJumpIdle,
+                    Team::Enemy => AnimationType::EnemySlimeJumpIdle,
+                }
             };
         }
     }
