@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, state::commands};
 use rand::Rng;
 
 use crate::{
@@ -58,12 +58,12 @@ fn spawn_slimes_system(
 ) {
     if timer.0.just_finished() {
         if slimes_to_spawn.player_slimes > 0 {
-            spawn_normal_slime(&mut commands, Team::Player);
+            spawn_tank_slime(&mut commands, Team::Player);
             slimes_to_spawn.player_slimes -= 1;
         }
 
         if slimes_to_spawn.enemy_slimes > 0 {
-            spawn_normal_slime(&mut commands, Team::Enemy);
+            spawn_tank_slime(&mut commands, Team::Enemy);
             slimes_to_spawn.enemy_slimes -= 1;
         }
     }
@@ -76,7 +76,7 @@ fn spawn_slimes_system(
     timer.0.tick(game_time.delta());
 }
 
-fn spawn_normal_slime(commands: &mut Commands, team: Team) {
+fn spawn_normal_slime(commands: &mut Commands, team: Team) -> Entity {
     let mut rng = rand::thread_rng();
 
     let player_x = rng.gen_range(-500.0..-100.0);
@@ -107,33 +107,53 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team) {
         ),
     };
 
-    commands.spawn((
-        idle_anim,
-        IdleAnimation(idle_anim),
-        VictoryAnimation(victory_anim),
-        Transform::from_xyz(x, y, 0.0).with_scale(Vec3::splat(scale as f32)),
-        team,
-        PickTargetStrategy::Close,
-        Sprite {
-            flip_x: team == Team::Enemy, // Flip enemy slimes to face left
-            ..default()
-        },
-        DeathAnimation(death_anim),
-        Health(10),
-        Speed(125.0),
-        KnownAttacks(vec![Attack {
-            animation: attack_anim,
-            hit_frame: 3,
-            on_hit_effect: AttackEffect {
-                damage: 2,
-                knockback: 0.0,
+    commands
+        .spawn((
+            idle_anim,
+            IdleAnimation(idle_anim),
+            VictoryAnimation(victory_anim),
+            Transform::from_xyz(x, y, 0.0).with_scale(Vec3::splat(scale as f32)),
+            team,
+            PickTargetStrategy::Close,
+            Sprite {
+                flip_x: team == Team::Enemy, // Flip enemy slimes to face left
+                ..default()
             },
-            range: 65.0,
-        }]),
-        Inert,
-        SpriteModification {
-            lerp: LerpType::EaseInOut,
-            timer: Timer::from_seconds(3.0, TimerMode::Once),
-        },
-    ));
+            DeathAnimation(death_anim),
+            Health(10),
+            Speed(125.0),
+            KnownAttacks(vec![Attack {
+                animation: attack_anim,
+                hit_frame: 3,
+                on_hit_effect: AttackEffect {
+                    damage: 2,
+                    knockback: 0.0,
+                },
+                range: 65.0,
+            }]),
+            Inert,
+            SpriteModification {
+                lerp: LerpType::EaseInOut,
+                timer: Timer::from_seconds(3.0, TimerMode::Once),
+            },
+        ))
+        .id()
+}
+
+fn spawn_tank_slime(commands: &mut Commands, team: Team) {
+    let entity = spawn_normal_slime(commands, team);
+
+    commands.entity(entity).insert(Health(20));
+
+    /*
+     replace attacks with tank specific attacks
+     replace health with *2 health
+     spawn shield child
+     flip shield child if sprite_x is flipped, should be part of existing system
+
+     will need to add stun chance to attack
+     will need to add block chance from target enemy
+     - should play sound when blocks
+     - should play animation/shader when shield blocks
+    */
 }
