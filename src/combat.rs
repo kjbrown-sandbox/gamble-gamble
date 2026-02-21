@@ -2,11 +2,10 @@ use bevy::{prelude::*, state::commands};
 use rand::seq::IteratorRandom;
 
 use crate::{
-    animation::{AnimationState, AnimationType},
+    animation::{AnimationState, AnimationType, IdleAnimation},
     health::{DamagedEvent, Dying, Health},
     movement::TargetEntity,
-    pick_target::Team,
-    special_abilities::{MergedSlime, Merging},
+    special_abilities::Merging,
 };
 
 pub struct CombatPlugin;
@@ -245,46 +244,23 @@ fn attack_cleanup_system(
     // despawn it. If we also try to modify it, we race with the despawn and get
     // "Entity despawned" errors when our deferred command runs after the despawn.
     //
-    // Option<&MergedSlime> lets us check if the entity is a merged slime without
-    // requiring it. If present (Some), we return to BigSlimeJumpIdle; if absent
-    // (None), we return to normal SlimeJumpIdle. This is a common ECS pattern:
-    // optional components let one system handle multiple "types" of entities
-    // without needing separate systems for each.
+    // IdleAnimation tells us which animation to return to after the attack finishes.
+    // Each entity carries its own IdleAnimation (set at spawn time), so this system
+    // doesn't need to know about teams, merged status, or any other entity type.
+    // Adding a new creature type? Just give it an IdleAnimation when you spawn it —
+    // this system handles it automatically.
     mut query: Query<
-        (
-            Entity,
-            &AnimationState,
-            &mut AnimationType,
-            Option<&MergedSlime>,
-            &Team,
-        ),
+        (Entity, &AnimationState, &mut AnimationType, &IdleAnimation),
         (With<ActiveAttack>, Without<Dying>),
     >,
 ) {
-    for (entity, anim_state, mut animation_type, merged, team) in query.iter_mut() {
+    for (entity, anim_state, mut animation_type, idle_animation) in query.iter_mut() {
         if anim_state.finished {
             // Remove ActiveAttack so pick_attack_system can assign a new attack.
             commands.entity(entity).remove::<ActiveAttack>();
-            // Go back to the appropriate idle animation.
-            // Merged slimes use BigSlimeJumpIdle (0.3s frame rate) to keep
-            // the lumbering look between attacks.
-            // *animation_type = if merged.is_some() {
-            //     AnimationType::BigSlimeJumpIdle
-            // } else {
-            //     if team
-            //     AnimationType::SlimeJumpIdle
-            // };
-            *animation_type = if merged.is_some() {
-                match team {
-                    Team::Player => AnimationType::BigSlimeJumpIdle,
-                    Team::Enemy => AnimationType::EnemyBigSlimeJumpIdle,
-                }
-            } else {
-                match team {
-                    Team::Player => AnimationType::SlimeJumpIdle,
-                    Team::Enemy => AnimationType::EnemySlimeJumpIdle,
-                }
-            };
+            // Return to this entity's idle animation. No need to match on team
+            // or merged status — the entity already knows its own idle animation.
+            *animation_type = idle_animation.0;
         }
     }
 }

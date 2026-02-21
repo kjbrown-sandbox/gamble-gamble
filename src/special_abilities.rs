@@ -2,7 +2,7 @@ use bevy::{audio::Volume, prelude::*};
 use rand::Rng;
 
 use crate::{
-    animation::{AnimationState, AnimationType, SpriteSheets},
+    animation::{AnimationState, AnimationType, IdleAnimation, SpriteSheets},
     audio::GameAudio,
     combat::{ActiveAttack, Attack, AttackEffect, KnownAttacks},
     health::{DeathAnimation, Dying, Health},
@@ -198,23 +198,35 @@ fn check_merge_system(
 
 fn on_add_pre_merge_system(
     mut commands: Commands,
-    mut query: Query<(Entity, &Team, &mut Sprite, &mut AnimationState), Added<PreMerging>>,
+    mut query: Query<(Entity, &IdleAnimation, &mut Sprite, &mut AnimationState), Added<PreMerging>>,
     sprite_sheets: Res<SpriteSheets>,
     audio: Res<GameAudio>,
 ) {
-    for (entity, team, mut sprite, mut anim_state) in &mut query {
+    for (entity, idle_animation, mut sprite, mut anim_state) in &mut query {
         commands.spawn((
             AudioPlayer::new(audio.merge_alert.clone()),
             PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.5)),
         ));
 
-        // Switch to frame 0 of SlimeMoveSmallJump and freeze there.
+        // Switch to frame 0 of the entity's idle animation and freeze there.
         // We manually set the sprite rather than changing AnimationType because
-        // the entity might already be on SlimeMoveSmallJump (its default idle),
+        // the entity might already be on its idle animation (its default),
         // and setting it to the same value wouldn't trigger Changed<AnimationType>.
-        let image = match team {
-            Team::Player => sprite_sheets.slime_move_small_jump.clone(),
-            Team::Enemy => sprite_sheets.enemy_slime_move_small_jump.clone(),
+        //
+        // We read IdleAnimation to get the correct sprite sheet image for this
+        // entity, rather than matching on Team. This way if we add new entity
+        // types with different idle sprites, this code doesn't need to change.
+        let image = match idle_animation.0 {
+            AnimationType::SlimeMoveSmallJump => sprite_sheets.slime_move_small_jump.clone(),
+            AnimationType::EnemySlimeMoveSmallJump => {
+                sprite_sheets.enemy_slime_move_small_jump.clone()
+            }
+            // Merged slimes shouldn't be entering PreMerging (MergedSlime filter
+            // excludes them in check_merge_system), but handle it gracefully.
+            AnimationType::BigSlimeJumpIdle => sprite_sheets.slime_jump_idle.clone(),
+            AnimationType::EnemyBigSlimeJumpIdle => sprite_sheets.enemy_slime_jump_idle.clone(),
+            // Fallback for any future idle types
+            _ => sprite_sheets.slime_move_small_jump.clone(),
         };
         sprite.image = image;
         sprite.texture_atlas = Some(TextureAtlas {
@@ -425,6 +437,7 @@ fn execute_merge_system(
 
         commands.spawn((
             big_idle,
+            IdleAnimation(big_idle),
             Transform::from_translation(midpoint).with_scale(Vec3::splat(merged_scale)),
             *team,
             PickTargetStrategy::Close,

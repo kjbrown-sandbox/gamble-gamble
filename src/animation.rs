@@ -9,6 +9,10 @@ impl Plugin for AnimationPlugin {
     }
 }
 
+/// Stores which animation an entity should return to when "at rest"
+#[derive(Component, Copy, Clone)]
+pub struct IdleAnimation(pub AnimationType);
+
 #[derive(Component, Copy, Clone, PartialEq, Eq, Hash)]
 #[require(AnimationState, Sprite)]
 pub enum AnimationType {
@@ -249,7 +253,10 @@ pub fn switch_animation_system(
                 wip_texture_atlas.layout = sprite_sheets.move_small_jump_layout.clone();
                 *anim_state = AnimationState::new(
                     0.1,
-                    assets.get(&sprite_sheets.move_small_jump_layout).unwrap().len(),
+                    assets
+                        .get(&sprite_sheets.move_small_jump_layout)
+                        .unwrap()
+                        .len(),
                     true,
                 );
             }
@@ -323,8 +330,7 @@ pub fn load_sprite_sheets(
         asset_server.load("sprites/slimes/Attack-Red/Slime_Attack_Spritesheet.png");
     let enemy_slime_move_small_jump =
         asset_server.load("sprites/slimes/Move-Small Jump-Red/Slime_Move_Spritesheet.png");
-    let enemy_slime_hurt =
-        asset_server.load("sprites/slimes/Hurt-Red/Slime_Hurt_Spritesheet.png");
+    let enemy_slime_hurt = asset_server.load("sprites/slimes/Hurt-Red/Slime_Hurt_Spritesheet.png");
     let enemy_slime_death =
         asset_server.load("sprites/slimes/Death-Red/Slime_Death_Spritesheet.png");
 

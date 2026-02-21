@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use rand::Rng;
 
 use crate::{
-    animation::AnimationType,
+    animation::{AnimationType, IdleAnimation},
     combat::{Attack, AttackEffect, KnownAttacks},
     health::{DeathAnimation, Health},
     movement::Speed,
@@ -107,6 +107,7 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team) {
 
     commands.spawn((
         idle_anim,
+        IdleAnimation(idle_anim),
         Transform::from_xyz(x, y, 0.0).with_scale(Vec3::splat(scale as f32)),
         team,
         PickTargetStrategy::Close,
