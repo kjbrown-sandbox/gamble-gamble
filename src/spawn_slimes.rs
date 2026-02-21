@@ -24,20 +24,33 @@ impl Plugin for SpawnSlimesPlugin {
     }
 }
 
+struct SlimeAmounts {
+    normal_slimes: u32,
+    tanks: u32,
+    wizards: u32,
+}
+
 #[derive(Resource)]
 pub struct SlimesToSpawn {
-    pub player_slimes: u32,
-    pub enemy_slimes: u32,
+    pub player_slimes: SlimeAmounts,
+    pub enemy_slimes: SlimeAmounts,
 }
 
 #[derive(Resource)]
 pub struct SlimeSpawnTimer(pub Timer);
 
 fn setup_slime_spawn_system(mut commands: Commands, save_data: Res<SaveData>) {
-    let player_slimes = save_data.slime_count;
     commands.insert_resource(SlimesToSpawn {
-        player_slimes,
-        enemy_slimes: 5,
+        player_slimes: SlimeAmounts {
+            normal_slimes: save_data.normal_slimes,
+            tanks: save_data.tanks,
+            wizards: save_data.wizards,
+        },
+        enemy_slimes: SlimeAmounts {
+            normal_slimes: 5,
+            tanks: 0,
+            wizards: 0,
+        },
     });
 
     commands.insert_resource(SlimeSpawnTimer(Timer::from_seconds(
@@ -57,18 +70,31 @@ fn spawn_slimes_system(
     game_time: Res<Time>,
 ) {
     if timer.0.just_finished() {
-        if slimes_to_spawn.player_slimes > 0 {
+        if slimes_to_spawn.player_slimes.normal_slimes > 0 {
+            spawn_normal_slime(&mut commands, Team::Player);
+            slimes_to_spawn.player_slimes.normal_slimes -= 1;
+        } else if slimes_to_spawn.player_slimes.tanks > 0 {
             spawn_tank_slime(&mut commands, Team::Player);
-            slimes_to_spawn.player_slimes -= 1;
+            slimes_to_spawn.player_slimes.tanks -= 1;
         }
 
-        if slimes_to_spawn.enemy_slimes > 0 {
+        if slimes_to_spawn.enemy_slimes.normal_slimes > 0 {
+            spawn_normal_slime(&mut commands, Team::Enemy);
+            slimes_to_spawn.enemy_slimes.normal_slimes -= 1;
+        } else if slimes_to_spawn.enemy_slimes.tanks > 0 {
             spawn_tank_slime(&mut commands, Team::Enemy);
-            slimes_to_spawn.enemy_slimes -= 1;
+            slimes_to_spawn.enemy_slimes.tanks -= 1;
         }
     }
 
-    if slimes_to_spawn.player_slimes == 0 && slimes_to_spawn.enemy_slimes == 0 {
+    if slimes_to_spawn.player_slimes.normal_slimes
+        + slimes_to_spawn.player_slimes.tanks
+        + slimes_to_spawn.player_slimes.wizards
+        + slimes_to_spawn.enemy_slimes.normal_slimes
+        + slimes_to_spawn.enemy_slimes.tanks
+        + slimes_to_spawn.enemy_slimes.wizards
+        == 0
+    {
         commands.remove_resource::<SlimeSpawnTimer>();
         commands.remove_resource::<SlimesToSpawn>();
     }

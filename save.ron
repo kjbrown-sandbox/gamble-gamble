@@ -1,4 +1,6 @@
 (                                                                                                                                                                                     
-slime_count: 5,                             
+normal_slimes: 5,                             
+tanks: 2,
+wizards: 0
 )                                                                                                                                                                                     
            

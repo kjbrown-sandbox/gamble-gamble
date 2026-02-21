@@ -29,17 +29,25 @@ impl Plugin for SaveLoadPlugin {
 /// manual migration code.
 #[derive(Resource, Serialize, Deserialize, Debug, Clone)]
 pub struct SaveData {
-    pub slime_count: u32,
-    // Future fields — add #[serde(default)] so old saves still load:
-    // #[serde(default)]
-    // pub gold: u32,
-    // #[serde(default)]
-    // pub upgrades: Vec<String>,
+    /// How many of each slime type the player owns.
+    /// #[serde(default)] on each field means old save files that only had
+    /// `slime_count` won't fail to parse — missing fields get their Default
+    /// value (0 for u32) instead of a deserialization error.
+    #[serde(default)]
+    pub normal_slimes: u32,
+    #[serde(default)]
+    pub tanks: u32,
+    #[serde(default)]
+    pub wizards: u32,
 }
 
 impl Default for SaveData {
     fn default() -> Self {
-        Self { slime_count: 5 }
+        Self {
+            normal_slimes: 5,
+            tanks: 0,
+            wizards: 0,
+        }
     }
 }
 
