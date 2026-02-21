@@ -151,6 +151,10 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team) {
         Transform::from_xyz(x, y, 0.0).with_scale(Vec3::splat(scale as f32)),
         team,
         PickTargetStrategy::Close,
+        Sprite {
+            flip_y: team == Team::Enemy,
+            ..default()
+        },
         DeathAnimation(AnimationType::SlimeDeath),
         Health(10),
         Speed(125.0),
