@@ -158,7 +158,7 @@ fn check_merge_system(
             }
 
             let distance = pos_a.distance(pos_b);
-            if distance > 100.0 {
+            if distance > 150.0 {
                 continue;
             }
 
@@ -461,11 +461,6 @@ fn cancel_merge_system(
     // We use a separate query (instead of checking within the first) because the
     // partner might not have a Merging component anymore if it was already cleaned up.
     alive_check: Query<Entity, Without<Dying>>,
-    // To read an entity's children, we need a Query — NOT commands.
-    // Commands is a write-only queue (insert, remove, despawn). It can't read data.
-    // This is a common ECS gotcha: Commands schedules future work, it doesn't give
-    // you access to the current state of the world.
-    children_query: Query<&Children>,
     mut commands: Commands,
 ) {
     for (entity, merging) in query.iter() {
