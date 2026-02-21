@@ -267,26 +267,35 @@ fn on_hit_observer(
             }
         }
 
-        // Roll for stun: if the attack has a stun_chance, randomly decide
-        // whether to stun the target. This uses rand::thread_rng() which
-        // generates a float in [0.0, 1.0) — if it's below stun_chance, we stun.
-        if trigger.effect.stun_chance > 0.0 {
+        // Roll for stun — but only if the target survived the hit.
+        // Without this check, we'd queue commands to insert Inert/StunTimer
+        // on a target that's about to be despawned by the death system.
+        // Those deferred commands would run after the despawn and cause
+        // "Entity despawned" errors. This is a common ECS pitfall: commands
+        // are deferred (they don't execute immediately), so you need to make
+        // sure the entity will still exist when they finally run.
+        if trigger.effect.stun_chance > 0.0 && health.0 > 0 {
             let mut rng = rand::thread_rng();
             if rng.gen::<f32>() < trigger.effect.stun_chance {
-                // Insert Inert to block movement, target picking, and attacking.
-                // Insert StunTimer so the stun auto-expires after stun_duration seconds.
-                commands.entity(trigger.target).insert((
-                    Inert,
-                    StunTimer(Timer::from_seconds(
-                        trigger.effect.stun_duration,
-                        TimerMode::Once,
-                    )),
-                ));
+                // Use get_entity() for safety — if the target somehow got
+                // despawned between the query and command execution, we skip
+                // gracefully instead of panicking with "Entity despawned."
+                if let Ok(mut target_commands) = commands.get_entity(trigger.target) {
+                    // Insert Inert to block movement, target picking, and attacking.
+                    // Insert StunTimer so the stun auto-expires after stun_duration seconds.
+                    target_commands.insert((
+                        Inert,
+                        StunTimer(Timer::from_seconds(
+                            trigger.effect.stun_duration,
+                            TimerMode::Once,
+                        )),
+                    ));
 
-                // Cancel any in-progress attack on the target.
-                // Without this, a stunned entity would finish its current attack
-                // even though it's frozen.
-                commands.entity(trigger.target).remove::<ActiveAttack>();
+                    // Cancel any in-progress attack on the target.
+                    // Without this, a stunned entity would finish its current attack
+                    // even though it's frozen.
+                    target_commands.remove::<ActiveAttack>();
+                }
 
                 // Freeze the target's sprite by marking its animation as finished.
                 // The stun_timer_system will set this back to false when the stun ends.
@@ -359,11 +368,19 @@ fn on_stunned_observer(
     // and if the parent is despawned (e.g., dies while stunned), the VFX
     // is despawned too — no orphaned effects.
     // z = 2.0 draws it on top of everything else on the entity.
-    commands.entity(trigger.entity).with_child((
-        IceImpactVfx,
-        AnimationType::IceImpact,
-        Transform::from_xyz(0.0, 0.0, 2.0),
-    ));
+    //
+    // We use get_entity() instead of entity() as a safety net.
+    // get_entity() returns Option<EntityCommands> — if the entity was
+    // despawned between when StunnedEvent was triggered and when this
+    // deferred command runs, we just skip it instead of panicking.
+    // entity() would cause an "Entity despawned" error in that case.
+    if let Ok(mut entity_commands) = commands.get_entity(trigger.entity) {
+        entity_commands.with_child((
+            IceImpactVfx,
+            AnimationType::IceImpact,
+            Transform::from_xyz(0.0, 0.0, 2.0),
+        ));
+    }
 }
 
 /// Watches for ice impact VFX entities whose animation has finished and despawns them.
