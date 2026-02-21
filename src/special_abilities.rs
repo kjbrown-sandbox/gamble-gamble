@@ -239,11 +239,11 @@ fn on_add_pre_merge_system(
             parent.spawn((
                 Text2d::new("!"),
                 TextFont {
-                    font_size: 40.0,
+                    font_size: 28.0,
                     ..default()
                 },
                 TextColor(Color::WHITE),
-                Transform::from_xyz(0.0, 60.0, 1.0),
+                Transform::from_xyz(0.0, 25.0, 1.0),
             ));
         });
     }
