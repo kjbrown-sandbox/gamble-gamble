@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+use crate::animation::{AnimationType, VictoryAnimation};
 use crate::pick_target::Team;
 use crate::setup_round::PreGameTimer;
 
@@ -24,7 +25,14 @@ struct RoundResult;
 #[derive(Component)]
 struct RoundResultText;
 
-fn check_round_end_system(mut commands: Commands, teams: Query<&Team>) {
+fn check_round_end_system(
+    mut commands: Commands,
+    teams: Query<&Team>,
+    // Query all surviving entities that have a VictoryAnimation so we can
+    // switch them to their celebration animation when the round ends.
+    // We query mutably because we need to change their current AnimationType.
+    mut survivors: Query<(&mut AnimationType, &VictoryAnimation, &Team)>,
+) {
     let mut has_player = false;
     let mut has_enemy = false;
 
@@ -39,7 +47,6 @@ fn check_round_end_system(mut commands: Commands, teams: Query<&Team>) {
         }
     }
 
-    info!(has_player, has_enemy);
     // Determine the message — if neither side exists, treat it as defeat
     let message = if has_player && !has_enemy {
         "VICTORY!"
@@ -49,6 +56,27 @@ fn check_round_end_system(mut commands: Commands, teams: Query<&Team>) {
 
     // Mark the round as over so this system stops running
     commands.insert_resource(RoundResult);
+
+    // Switch all surviving entities to their victory animation.
+    // The winning team gets to celebrate! We check which team won
+    // and only switch entities on that team. Each entity already
+    // carries its own VictoryAnimation (set at spawn), so we don't
+    // need to know what kind of entity it is.
+    let winning_team = if has_player {
+        Some(Team::Player)
+    } else if has_enemy {
+        Some(Team::Enemy)
+    } else {
+        None // Both teams eliminated — nobody celebrates
+    };
+
+    if let Some(winner) = winning_team {
+        for (mut anim_type, victory_anim, team) in survivors.iter_mut() {
+            if *team == winner {
+                *anim_type = victory_anim.0;
+            }
+        }
+    }
 
     // Full-screen centered container with the result text
     commands

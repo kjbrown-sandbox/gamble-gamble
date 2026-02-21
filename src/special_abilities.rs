@@ -2,7 +2,7 @@ use bevy::{audio::Volume, prelude::*};
 use rand::Rng;
 
 use crate::{
-    animation::{AnimationState, AnimationType, IdleAnimation, SpriteSheets},
+    animation::{AnimationState, AnimationType, IdleAnimation, SpriteSheets, VictoryAnimation},
     audio::GameAudio,
     combat::{ActiveAttack, Attack, AttackEffect, KnownAttacks},
     health::{DeathAnimation, Dying, Health},
@@ -422,22 +422,25 @@ fn execute_merge_system(
         // No SpriteModification (the spawn scale animation targets 1.0, which would
         // fight our 2x scale). No Inert either — it spawns ready to fight.
         // Pick the correct big slime animation variants based on team
-        let (big_idle, big_attack, big_death) = match team {
+        let (big_idle, big_attack, big_death, big_victory) = match team {
             Team::Player => (
                 AnimationType::BigSlimeJumpIdle,
                 AnimationType::BigSlimeAttack,
                 AnimationType::BigSlimeDeath,
+                AnimationType::BigSlimeJumpIdle,
             ),
             Team::Enemy => (
                 AnimationType::EnemyBigSlimeJumpIdle,
                 AnimationType::EnemyBigSlimeAttack,
                 AnimationType::EnemyBigSlimeDeath,
+                AnimationType::EnemyBigSlimeJumpIdle,
             ),
         };
 
         commands.spawn((
             big_idle,
             IdleAnimation(big_idle),
+            VictoryAnimation(big_victory),
             Transform::from_translation(midpoint).with_scale(Vec3::splat(merged_scale)),
             *team,
             PickTargetStrategy::Close,

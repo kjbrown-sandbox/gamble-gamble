@@ -13,6 +13,9 @@ impl Plugin for AnimationPlugin {
 #[derive(Component, Copy, Clone)]
 pub struct IdleAnimation(pub AnimationType);
 
+#[derive(Component, Copy, Clone)]
+pub struct VictoryAnimation(pub AnimationType);
+
 #[derive(Component, Copy, Clone, PartialEq, Eq, Hash)]
 #[require(AnimationState, Sprite)]
 pub enum AnimationType {

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use rand::Rng;
 
 use crate::{
-    animation::{AnimationType, IdleAnimation},
+    animation::{AnimationType, IdleAnimation, VictoryAnimation},
     combat::{Attack, AttackEffect, KnownAttacks},
     health::{DeathAnimation, Health},
     movement::Speed,
@@ -92,22 +92,25 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team) {
     };
 
     // Pick the correct animation variants based on team
-    let (idle_anim, attack_anim, death_anim) = match team {
+    let (idle_anim, attack_anim, death_anim, victory_anim) = match team {
         Team::Player => (
             AnimationType::SlimeMoveSmallJump,
             AnimationType::SlimeAttack,
             AnimationType::SlimeDeath,
+            AnimationType::SlimeJumpIdle,
         ),
         Team::Enemy => (
             AnimationType::EnemySlimeMoveSmallJump,
             AnimationType::EnemySlimeAttack,
             AnimationType::EnemySlimeDeath,
+            AnimationType::EnemySlimeJumpIdle,
         ),
     };
 
     commands.spawn((
         idle_anim,
         IdleAnimation(idle_anim),
+        VictoryAnimation(victory_anim),
         Transform::from_xyz(x, y, 0.0).with_scale(Vec3::splat(scale as f32)),
         team,
         PickTargetStrategy::Close,
