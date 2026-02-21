@@ -31,6 +31,8 @@ impl Plugin for SpecialAbilitiesPlugin {
             Update,
             (
                 check_merge_system,
+                on_add_pre_merge_system,
+                pre_merge_system,
                 merge_walk_system,
                 execute_merge_system,
                 cancel_merge_system,
@@ -74,6 +76,13 @@ pub struct MergedSlime;
 #[derive(Resource)]
 pub struct MergeCheckTimer(pub Timer);
 
+#[derive(Component)]
+pub struct PreMerging {
+    pub timer: Timer,
+    pub partner: Entity,
+    pub meeting_point: Vec3,
+}
+
 // ── Systems ─────────────────────────────────────────────────────────────────
 
 /// System 1: Periodically checks if any same-team slime pairs should merge.
@@ -104,6 +113,7 @@ fn check_merge_system(
             Without<Inert>,
             Without<Dying>,
             Without<ActiveAttack>,
+            Without<PreMerging>,
             Without<Merging>,
             Without<MergedSlime>,
             With<Health>,
@@ -152,7 +162,7 @@ fn check_merge_system(
             }
 
             // Roll the dice — 0.5% chance per qualifying pair per tick
-            if rng.gen::<f32>() > 0.005 {
+            if rng.gen::<f32>() > 0.05 {
                 continue;
             }
 
@@ -165,13 +175,15 @@ fn check_merge_system(
             // Insert Merging on both entities. This marks them as "busy" so other
             // systems (pick_target, pick_attack) will skip them.
             // Also remove TargetEntity so they stop chasing enemies.
-            commands.entity(entity_a).insert(Merging {
+            commands.entity(entity_a).insert(PreMerging {
+                timer: Timer::from_seconds(1.5, TimerMode::Once),
                 partner: entity_b,
                 meeting_point,
             });
             commands.entity(entity_a).remove::<TargetEntity>();
 
-            commands.entity(entity_b).insert(Merging {
+            commands.entity(entity_b).insert(PreMerging {
+                timer: Timer::from_seconds(1.5, TimerMode::Once),
                 partner: entity_a,
                 meeting_point,
             });
@@ -179,6 +191,69 @@ fn check_merge_system(
 
             already_paired.push(entity_a);
             already_paired.push(entity_b);
+        }
+    }
+}
+
+fn on_add_pre_merge_system(mut commands: Commands, query: Query<Entity, Added<PreMerging>>) {
+    for entity in &query {
+        commands.entity(entity).with_children(|parent| {
+            parent.spawn((
+                Text2d::new("!"),
+                TextFont {
+                    font_size: 40.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                // Offset upward above the slime's sprite
+                Transform::from_xyz(0.0, 60.0, 1.0),
+            ));
+        });
+    }
+}
+
+fn pre_merge_system(
+    mut commands: Commands,
+    // Entity is needed so we can operate on BOTH the current entity and its partner.
+    // The original code only had &mut PreMerging, so it could only reference the partner
+    // (via pre_merging.partner) and never the current entity itself.
+    mut query: Query<(Entity, &mut PreMerging), Without<Dying>>,
+    // Separate query to check if the partner is still alive — same pattern as cancel_merge_system.
+    // This prevents the crash: without it, commands.entity(dead_partner) panics.
+    alive_check: Query<Entity, Without<Dying>>,
+    time: Res<Time>,
+) {
+    for (entity, mut pre_merging) in query.iter_mut() {
+        pre_merging.timer.tick(time.delta());
+
+        // If the partner died during the 1.5s timer, cancel this entity's PreMerging.
+        // This was the cause of the crash — calling commands.entity() on a despawned
+        // entity panics with "Entity despawned: entity ID is invalid."
+        if alive_check.get(pre_merging.partner).is_err() {
+            commands.entity(entity).remove::<PreMerging>();
+            continue;
+        }
+
+        if pre_merging.timer.is_finished() {
+            let partner = pre_merging.partner;
+            let meeting_point = pre_merging.meeting_point;
+
+            // Swap PreMerging → Merging on THIS entity
+            commands.entity(entity).remove::<PreMerging>();
+            commands.entity(entity).insert(Merging {
+                partner,
+                meeting_point,
+            });
+
+            // Swap PreMerging → Merging on the PARTNER.
+            // Note: partner's Merging.partner points back to US (entity), not to itself.
+            // The original code had both blocks pointing at pre_merging.partner, which meant
+            // the partner's Merging.partner pointed at itself — that breaks execute_merge_system.
+            commands.entity(partner).remove::<PreMerging>();
+            commands.entity(partner).insert(Merging {
+                partner: entity,
+                meeting_point,
+            });
         }
     }
 }
@@ -326,12 +401,26 @@ fn cancel_merge_system(
     // We use a separate query (instead of checking within the first) because the
     // partner might not have a Merging component anymore if it was already cleaned up.
     alive_check: Query<Entity, Without<Dying>>,
+    // To read an entity's children, we need a Query — NOT commands.
+    // Commands is a write-only queue (insert, remove, despawn). It can't read data.
+    // This is a common ECS gotcha: Commands schedules future work, it doesn't give
+    // you access to the current state of the world.
+    children_query: Query<&Children>,
     mut commands: Commands,
 ) {
     for (entity, merging) in query.iter() {
         // If the partner doesn't exist at all (despawned) or is dying, cancel the merge.
         if alive_check.get(merging.partner).is_err() {
             commands.entity(entity).remove::<Merging>();
+
+            // Despawn all children (the "!" indicator text).
+            // Children is a component that Bevy automatically adds when you use with_children().
+            // It's basically a Vec<Entity> of all child entities.
+            if let Ok(children) = children_query.get(entity) {
+                for &child in children.iter() {
+                    commands.entity(child).despawn();
+                }
+            }
         }
     }
 }

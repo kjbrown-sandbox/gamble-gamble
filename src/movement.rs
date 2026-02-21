@@ -3,7 +3,7 @@ use std::time;
 use bevy::prelude::*;
 
 use crate::setup_round::Inert;
-use crate::special_abilities::Merging;
+use crate::special_abilities::{Merging, PreMerging};
 
 pub struct MovementPlugin;
 
@@ -22,7 +22,10 @@ pub struct Speed(pub f32);
 
 pub fn move_to_target_system(
     mut params: ParamSet<(
-        Query<(Entity, &mut Transform, &TargetEntity, &Speed), Without<Inert>>,
+        Query<
+            (Entity, &mut Transform, &TargetEntity, &Speed),
+            (Without<Inert>, Without<PreMerging>, Without<Merging>),
+        >,
         Query<&Transform>,
     )>,
     mut commands: Commands,
@@ -78,7 +81,10 @@ pub fn move_to_target_system(
 /// Without<Merging> excludes slimes that are currently walking toward their
 /// merge partner. Without this filter, unsmush would push them apart as they
 /// try to converge, creating a tug-of-war between the two systems.
-pub fn unsmush_system(mut query: Query<(Entity, &mut Transform), (With<Sprite>, Without<Merging>)>, time: Res<Time>) {
+pub fn unsmush_system(
+    mut query: Query<(Entity, &mut Transform), (With<Sprite>, Without<Merging>)>,
+    time: Res<Time>,
+) {
     let min_x_distance = 50.0;
     let min_y_distance = 35.0;
     let push_strength = 100.0;
