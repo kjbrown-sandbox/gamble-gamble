@@ -412,15 +412,7 @@ fn cancel_merge_system(
         // If the partner doesn't exist at all (despawned) or is dying, cancel the merge.
         if alive_check.get(merging.partner).is_err() {
             commands.entity(entity).remove::<Merging>();
-
-            // Despawn all children (the "!" indicator text).
-            // Children is a component that Bevy automatically adds when you use with_children().
-            // It's basically a Vec<Entity> of all child entities.
-            if let Ok(children) = children_query.get(entity) {
-                for &child in children.iter() {
-                    commands.entity(child).despawn();
-                }
-            }
+            commands.entity(entity).despawn_children(); // Remove the "!" indicator
         }
     }
 }
