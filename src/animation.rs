@@ -17,6 +17,13 @@ pub enum AnimationType {
     SlimeMoveSmallJump,
     SlimeHurt,
     SlimeDeath,
+    // "Big" variants use the same sprite sheets as their normal counterparts,
+    // but with a 0.3s frame duration (3x slower). This makes merged slimes look
+    // heavy and lumbering. The slower attack animation also inherently makes
+    // the attack cycle ~3x longer, so merged slimes attack less frequently.
+    BigSlimeJumpIdle,
+    BigSlimeAttack,
+    BigSlimeDeath,
 }
 
 fn default_animated_sprite() -> Sprite {
@@ -166,6 +173,36 @@ pub fn switch_animation_system(
                 wip_texture_atlas.layout = sprite_sheets.death_layout.clone();
                 *anim_state = AnimationState::new(
                     0.1,
+                    assets.get(&sprite_sheets.death_layout).unwrap().len(),
+                    false,
+                );
+            }
+            // Big variants reuse the same sprite sheets but run at 0.3s per frame.
+            // This is the simplest way to make merged slimes animate differently —
+            // no new assets needed, just a different frame_duration in the same match.
+            AnimationType::BigSlimeJumpIdle => {
+                sprite.image = sprite_sheets.slime_jump_idle.clone();
+                wip_texture_atlas.layout = sprite_sheets.jump_idle_layout.clone();
+                *anim_state = AnimationState::new(
+                    0.3,
+                    assets.get(&sprite_sheets.jump_idle_layout).unwrap().len(),
+                    true,
+                );
+            }
+            AnimationType::BigSlimeAttack => {
+                sprite.image = sprite_sheets.slime_attack.clone();
+                wip_texture_atlas.layout = sprite_sheets.attack_layout.clone();
+                *anim_state = AnimationState::new(
+                    0.3,
+                    assets.get(&sprite_sheets.attack_layout).unwrap().len(),
+                    false,
+                );
+            }
+            AnimationType::BigSlimeDeath => {
+                sprite.image = sprite_sheets.slime_death.clone();
+                wip_texture_atlas.layout = sprite_sheets.death_layout.clone();
+                *anim_state = AnimationState::new(
+                    0.3,
                     assets.get(&sprite_sheets.death_layout).unwrap().len(),
                     false,
                 );

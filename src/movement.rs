@@ -3,6 +3,7 @@ use std::time;
 use bevy::prelude::*;
 
 use crate::setup_round::Inert;
+use crate::special_abilities::Merging;
 
 pub struct MovementPlugin;
 
@@ -73,7 +74,11 @@ pub fn move_to_target_system(
 /// Pushes entities apart when they're within 50 units of each other.
 /// The closer they are, the stronger the push. This prevents units
 /// from stacking on top of each other.
-pub fn unsmush_system(mut query: Query<(Entity, &mut Transform), With<Sprite>>, time: Res<Time>) {
+///
+/// Without<Merging> excludes slimes that are currently walking toward their
+/// merge partner. Without this filter, unsmush would push them apart as they
+/// try to converge, creating a tug-of-war between the two systems.
+pub fn unsmush_system(mut query: Query<(Entity, &mut Transform), (With<Sprite>, Without<Merging>)>, time: Res<Time>) {
     let min_x_distance = 50.0;
     let min_y_distance = 35.0;
     let push_strength = 100.0;

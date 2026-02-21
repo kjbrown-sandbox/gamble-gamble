@@ -12,6 +12,11 @@ use crate::save_load::SaveData;
 
 fn main() {
     App::new()
+        // Bevy's add_plugins() only supports tuples of up to 15 elements.
+        // When you exceed that, you nest them into sub-tuples. Each sub-tuple
+        // counts as one element in the outer tuple. This is a Bevy limitation,
+        // not a Rust one — Bevy uses macros to implement the Plugins trait for
+        // tuples up to a certain size.
         .add_plugins((
             DefaultPlugins,
             save_load::SaveLoadPlugin,
@@ -21,11 +26,14 @@ fn main() {
             armies::ArmiesPlugin,
             movement::MovementPlugin,
             pick_target::PickTargetPlugin,
+        ))
+        .add_plugins((
             health::HealthPlugin,
             combat::CombatPlugin,
             end_round::EndRoundPlugin,
             setup_round::SetupRoundPlugin,
             spawn_slimes::SpawnSlimesPlugin,
+            special_abilities::SpecialAbilitiesPlugin,
             shaders_lite::ShadersLitePlugin,
             sprite_modifications::SpriteModificationsPlugin,
         ))
@@ -128,4 +136,5 @@ mod save_load;
 mod setup_round;
 mod shaders_lite;
 mod spawn_slimes;
+mod special_abilities;
 mod sprite_modifications;

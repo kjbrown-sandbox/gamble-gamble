@@ -5,6 +5,7 @@ use crate::{
     animation::{AnimationState, AnimationType},
     health::{DamagedEvent, Dying, Health},
     movement::TargetEntity,
+    special_abilities::{MergedSlime, Merging},
 };
 
 pub struct CombatPlugin;
@@ -112,7 +113,7 @@ pub struct OnHitEvent {
 fn pick_attack_system(
     attackers: Query<
         (Entity, &KnownAttacks, &Transform, &TargetEntity),
-        (Without<ActiveAttack>, Without<Dying>),
+        (Without<ActiveAttack>, Without<Dying>, Without<Merging>),
     >,
     targets: Query<&Transform>,
     mut commands: Commands,
@@ -242,14 +243,26 @@ fn attack_cleanup_system(
     // Without<Dying> is critical here: if an entity is dying, the death system will
     // despawn it. If we also try to modify it, we race with the despawn and get
     // "Entity despawned" errors when our deferred command runs after the despawn.
-    mut query: Query<(Entity, &AnimationState, &mut AnimationType), (With<ActiveAttack>, Without<Dying>)>,
+    //
+    // Option<&MergedSlime> lets us check if the entity is a merged slime without
+    // requiring it. If present (Some), we return to BigSlimeJumpIdle; if absent
+    // (None), we return to normal SlimeJumpIdle. This is a common ECS pattern:
+    // optional components let one system handle multiple "types" of entities
+    // without needing separate systems for each.
+    mut query: Query<(Entity, &AnimationState, &mut AnimationType, Option<&MergedSlime>), (With<ActiveAttack>, Without<Dying>)>,
 ) {
-    for (entity, anim_state, mut animation_type) in query.iter_mut() {
+    for (entity, anim_state, mut animation_type, merged) in query.iter_mut() {
         if anim_state.finished {
             // Remove ActiveAttack so pick_attack_system can assign a new attack.
             commands.entity(entity).remove::<ActiveAttack>();
-            // Go back to idle animation
-            *animation_type = AnimationType::SlimeJumpIdle;
+            // Go back to the appropriate idle animation.
+            // Merged slimes use BigSlimeJumpIdle (0.3s frame rate) to keep
+            // the lumbering look between attacks.
+            *animation_type = if merged.is_some() {
+                AnimationType::BigSlimeJumpIdle
+            } else {
+                AnimationType::SlimeJumpIdle
+            };
         }
     }
 }

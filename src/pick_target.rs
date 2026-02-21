@@ -5,6 +5,7 @@ use rand::seq::IteratorRandom;
 
 use crate::movement::TargetEntity;
 use crate::setup_round::Inert;
+use crate::special_abilities::Merging;
 
 pub struct PickTargetPlugin;
 
@@ -28,7 +29,7 @@ pub enum Team {
 pub fn pick_target_system(
     entities_needing_targets: Query<
         (Entity, &PickTargetStrategy, &Team, &Transform),
-        (Without<TargetEntity>, Without<Inert>),
+        (Without<TargetEntity>, Without<Inert>, Without<Merging>),
     >,
     potential_targets: Query<(Entity, &Team, &Transform)>,
     mut commands: Commands,
