@@ -18,7 +18,12 @@ fn main() {
         // not a Rust one — Bevy uses macros to implement the Plugins trait for
         // tuples up to a certain size.
         .add_plugins((
-            DefaultPlugins,
+            // default_nearest() switches every image to nearest-neighbor
+            // filtering instead of bilinear. Without this, pixel art looks
+            // blurry when scaled up because bilinear interpolation blends
+            // neighboring pixels together. Nearest-neighbor just picks the
+            // closest texel, preserving hard pixel edges.
+            DefaultPlugins.set(ImagePlugin::default_nearest()),
             save_load::SaveLoadPlugin,
             audio::AudioPlugin,
             animation::AnimationPlugin,

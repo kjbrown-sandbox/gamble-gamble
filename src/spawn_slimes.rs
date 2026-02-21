@@ -155,7 +155,7 @@ fn spawn_tank_slime(commands: &mut Commands, team: Team) -> Entity {
     // z = 1.0 draws the shield in front of the slime sprite.
     commands.entity(entity).insert(Health(20)).with_child((
         AnimationType::IcebergIdle,
-        Transform::from_xyz(shield_x, 0.0, 1.0),
+        Transform::from_xyz(shield_x, -20.0, 1.0).with_scale(Vec3::splat(3.0)),
         Sprite {
             flip_x: team == Team::Enemy,
             ..default()

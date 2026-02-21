@@ -2,6 +2,7 @@ use std::time;
 
 use bevy::prelude::*;
 
+use crate::health::Health;
 use crate::setup_round::Inert;
 use crate::special_abilities::{Merging, PreMerging};
 
@@ -84,7 +85,12 @@ pub fn move_to_target_system(
 pub fn unsmush_system(
     mut query: Query<
         (Entity, &mut Transform),
-        (With<Sprite>, Without<Merging>, Without<PreMerging>),
+        (
+            With<Sprite>,
+            With<Health>,
+            Without<Merging>,
+            Without<PreMerging>,
+        ),
     >,
     time: Res<Time>,
 ) {
