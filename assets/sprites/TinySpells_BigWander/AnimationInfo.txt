@@ -1,0 +1,8 @@
+Spritesheet Grid Size: 32x32
+Recommended Animation Speed: 80 ms
+
+Different Rows indicate different animations - Often you will find The "spawn" animation frames at the top, a loopable one in between, and an ending/despawn one at the end
+
+The Pivot point must be placed manually on your engine depending on your needs - Some sprites seem to have too big of a canvas, but most have effects that occupy a large portion of it, hence the dimensions
+
+Enjoy and let me know if you have any questions about them :)
