@@ -154,6 +154,7 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team) -> Entity {
                 on_hit_effect: AttackEffect {
                     damage: 2,
                     knockback: 0.0,
+                    ..Default::default()
                 },
                 range: 65.0,
             }]),
@@ -179,6 +180,26 @@ fn spawn_tank_slime(commands: &mut Commands, team: Team) -> Entity {
     // Spawn the iceberg shield as a child entity so it moves, flips,
     // and despawns automatically with the parent slime.
     // z = 1.0 draws the shield in front of the slime sprite.
+    // Override the normal slime's attack with the tank's stun attack.
+    // We remove the old KnownAttacks and insert a new one. The tank hits harder
+    // and stuns 100% of the time for 1.5 seconds, but has no knockback.
+    let (attack_anim, _) = match team {
+        Team::Player => (AnimationType::SlimeAttack, ()),
+        Team::Enemy => (AnimationType::EnemySlimeAttack, ()),
+    };
+
+    commands.entity(entity).insert(KnownAttacks(vec![Attack {
+        animation: attack_anim,
+        hit_frame: 3,
+        on_hit_effect: AttackEffect {
+            damage: 2,
+            knockback: 0.0,
+            stun_chance: 1.0,    // 100% stun rate — tanks always stun
+            stun_duration: 1.5,  // target is frozen for 1.5 seconds
+        },
+        range: 65.0,
+    }]));
+
     commands.entity(entity).insert(Health(20)).with_child((
         AnimationType::IcebergIdle,
         Transform::from_xyz(shield_x, -20.0, 1.0).with_scale(Vec3::splat(3.0)),

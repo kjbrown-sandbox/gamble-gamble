@@ -1,10 +1,12 @@
 use bevy::{prelude::*, state::commands};
-use rand::seq::IteratorRandom;
+use rand::{seq::IteratorRandom, Rng};
 
 use crate::{
     animation::{AnimationState, AnimationType, IdleAnimation},
+    audio::GameAudio,
     health::{DamagedEvent, Dying, Health},
     movement::TargetEntity,
+    setup_round::{Inert, StunTimer},
     special_abilities::Merging,
 };
 
@@ -13,6 +15,7 @@ pub struct CombatPlugin;
 impl Plugin for CombatPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(on_hit_observer);
+        app.add_observer(on_stunned_observer);
 
         // Chain these systems so they run in order within a single frame.
         // The data flows like a pipeline:
@@ -34,6 +37,9 @@ impl Plugin for CombatPlugin {
             )
                 .chain(),
         );
+
+        // ice_vfx_cleanup runs independently — it just watches for finished VFX and despawns them
+        app.add_systems(Update, ice_vfx_cleanup_system);
     }
 }
 
@@ -68,10 +74,17 @@ pub struct Attack {
 ///
 /// Clone is needed so we can copy it out of Attack into OnHitEvent.
 /// Default is derived so we could create a "no effect" AttackEffect easily.
+///
+/// stun_chance and stun_duration default to 0.0 so existing attacks that don't
+/// specify them are unaffected — they simply never roll for stun.
 #[derive(Clone, Default)]
 pub struct AttackEffect {
     pub damage: i32,
     pub knockback: f32,
+    /// Probability of stunning the target on hit (0.0 = never, 1.0 = always).
+    pub stun_chance: f32,
+    /// How long the stun lasts in seconds. Only matters if stun_chance > 0.
+    pub stun_duration: f32,
 }
 
 /// Marks an entity as currently performing an attack.
@@ -108,12 +121,30 @@ pub struct OnHitEvent {
     pub effect: AttackEffect,
 }
 
+/// Fired when a target gets stunned. The on_stunned_observer reacts to this
+/// by spawning ice impact VFX and playing the stun sound.
+///
+/// This is an Observer event (like OnHitEvent), not a Message — it fires
+/// immediately via commands.trigger() and is handled inline by the observer.
+#[derive(Event)]
+pub struct StunnedEvent {
+    pub entity: Entity,
+}
+
+/// Marker component for the ice impact VFX child entity.
+/// Used by stun_timer_system to find and despawn VFX when the stun ends,
+/// and by ice_vfx_cleanup_system to self-despawn when the animation finishes.
+#[derive(Component)]
+pub struct IceImpactVfx;
+
 // ── Systems ─────────────────────────────────────────────────────────────────
 /// Picks an attack for entities that are in range of their target but not already attacking.
+/// Without<Inert> is added here so stunned entities can't start new attacks.
+/// Inert already blocks movement and target picking — this closes the last gap.
 fn pick_attack_system(
     attackers: Query<
         (Entity, &KnownAttacks, &Transform, &TargetEntity),
-        (Without<ActiveAttack>, Without<Dying>, Without<Merging>),
+        (Without<ActiveAttack>, Without<Dying>, Without<Merging>, Without<Inert>),
     >,
     targets: Query<&Transform>,
     mut commands: Commands,
@@ -178,7 +209,7 @@ fn hit_frame_check_system(
     }
 }
 
-/// Observer that reacts to OnHitEvent and applies damage + knockback.
+/// Observer that reacts to OnHitEvent and applies damage + knockback + stun.
 ///
 /// Observers are functions registered with app.add_observer(). They run immediately
 /// when their event type is triggered via commands.trigger(). Unlike regular systems,
@@ -189,13 +220,13 @@ fn hit_frame_check_system(
 /// Additional parameters work just like regular system parameters (queries, commands, etc.).
 ///
 /// ParamSet is still needed here because we read the attacker's Transform (p0)
-/// and mutate the target's Health + Transform (p1). Both touch Transform,
+/// and mutate the target's Health + Transform + AnimationState (p1). Both touch Transform,
 /// so Bevy won't allow two overlapping queries without ParamSet.
 fn on_hit_observer(
     trigger: On<OnHitEvent>,
     mut params: ParamSet<(
-        Query<&Transform>,                    // p0: read attacker position
-        Query<(&mut Health, &mut Transform)>, // p1: mutate target health + position
+        Query<&Transform>,                                        // p0: read attacker position
+        Query<(&mut Health, &mut Transform, &mut AnimationState)>, // p1: mutate target
     )>,
     mut commands: Commands,
 ) {
@@ -209,8 +240,8 @@ fn on_hit_observer(
         return;
     };
 
-    // Now use p1 to mutate the target's health and position.
-    if let Ok((mut health, mut transform)) = params.p1().get_mut(trigger.target) {
+    // Now use p1 to mutate the target's health, position, and animation state.
+    if let Ok((mut health, mut transform, mut anim_state)) = params.p1().get_mut(trigger.target) {
         // Apply damage
         if health.0 > 0 {
             health.0 -= trigger.effect.damage;
@@ -235,6 +266,40 @@ fn on_hit_observer(
                 );
             }
         }
+
+        // Roll for stun: if the attack has a stun_chance, randomly decide
+        // whether to stun the target. This uses rand::thread_rng() which
+        // generates a float in [0.0, 1.0) — if it's below stun_chance, we stun.
+        if trigger.effect.stun_chance > 0.0 {
+            let mut rng = rand::thread_rng();
+            if rng.gen::<f32>() < trigger.effect.stun_chance {
+                // Insert Inert to block movement, target picking, and attacking.
+                // Insert StunTimer so the stun auto-expires after stun_duration seconds.
+                commands.entity(trigger.target).insert((
+                    Inert,
+                    StunTimer(Timer::from_seconds(
+                        trigger.effect.stun_duration,
+                        TimerMode::Once,
+                    )),
+                ));
+
+                // Cancel any in-progress attack on the target.
+                // Without this, a stunned entity would finish its current attack
+                // even though it's frozen.
+                commands.entity(trigger.target).remove::<ActiveAttack>();
+
+                // Freeze the target's sprite by marking its animation as finished.
+                // The stun_timer_system will set this back to false when the stun ends.
+                anim_state.finished = true;
+
+                // Fire StunnedEvent so the VFX/audio observer can react.
+                // This is the Observer pattern again — we trigger the event here,
+                // and on_stunned_observer handles the visual/audio response.
+                commands.trigger(StunnedEvent {
+                    entity: trigger.target,
+                });
+            }
+        }
     }
 }
 
@@ -244,6 +309,11 @@ fn attack_cleanup_system(
     // despawn it. If we also try to modify it, we race with the despawn and get
     // "Entity despawned" errors when our deferred command runs after the despawn.
     //
+    // Without<Inert> prevents this system from interfering with stunned entities.
+    // When an entity gets stunned, we set anim_state.finished = true to freeze it.
+    // Without this filter, attack_cleanup would see finished == true and try to
+    // return the entity to idle, fighting with the stun freeze.
+    //
     // IdleAnimation tells us which animation to return to after the attack finishes.
     // Each entity carries its own IdleAnimation (set at spawn time), so this system
     // doesn't need to know about teams, merged status, or any other entity type.
@@ -251,7 +321,7 @@ fn attack_cleanup_system(
     // this system handles it automatically.
     mut query: Query<
         (Entity, &AnimationState, &mut AnimationType, &IdleAnimation),
-        (With<ActiveAttack>, Without<Dying>),
+        (With<ActiveAttack>, Without<Dying>, Without<Inert>),
     >,
 ) {
     for (entity, anim_state, mut animation_type, idle_animation) in query.iter_mut() {
@@ -261,6 +331,55 @@ fn attack_cleanup_system(
             // Return to this entity's idle animation. No need to match on team
             // or merged status — the entity already knows its own idle animation.
             *animation_type = idle_animation.0;
+        }
+    }
+}
+
+/// Observer that reacts to StunnedEvent by spawning ice VFX and playing a sound.
+///
+/// This is separate from on_hit_observer for the same reason DamagedEvent is
+/// separate from OnHitEvent: decoupling "what happened" from "how to show it."
+/// The hit observer handles game logic (damage, stun state), while this observer
+/// handles presentation (VFX, audio). This makes it easy to add/change visual
+/// feedback without touching combat logic.
+fn on_stunned_observer(
+    trigger: On<StunnedEvent>,
+    audio: Res<GameAudio>,
+    mut commands: Commands,
+) {
+    // Play the stun sound. DESPAWN means the AudioPlayer entity will be
+    // automatically cleaned up after the sound finishes playing.
+    commands.spawn((
+        AudioPlayer::new(audio.stun.clone()),
+        PlaybackSettings::DESPAWN,
+    ));
+
+    // Spawn ice impact VFX as a child of the stunned entity.
+    // Being a child means it follows the parent's position automatically,
+    // and if the parent is despawned (e.g., dies while stunned), the VFX
+    // is despawned too — no orphaned effects.
+    // z = 2.0 draws it on top of everything else on the entity.
+    commands.entity(trigger.entity).with_child((
+        IceImpactVfx,
+        AnimationType::IceImpact,
+        Transform::from_xyz(0.0, 0.0, 2.0),
+    ));
+}
+
+/// Watches for ice impact VFX entities whose animation has finished and despawns them.
+/// This is the "self-destruct" mechanism: the VFX plays its one-shot animation,
+/// then this system notices `finished == true` and removes the entity.
+///
+/// This runs independently of the stun timer — the VFX might finish before or
+/// after the stun ends. If the stun ends first, stun_timer_system despawns it.
+/// If the animation ends first, this system despawns it. Either way it's cleaned up.
+fn ice_vfx_cleanup_system(
+    mut commands: Commands,
+    query: Query<(Entity, &AnimationState), With<IceImpactVfx>>,
+) {
+    for (entity, anim_state) in query.iter() {
+        if anim_state.finished {
+            commands.entity(entity).despawn();
         }
     }
 }

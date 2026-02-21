@@ -456,6 +456,7 @@ fn execute_merge_system(
                 on_hit_effect: AttackEffect {
                     damage: 8,
                     knockback: 0.0,
+                    ..Default::default()
                 },
                 range: 100.0,
             }]),

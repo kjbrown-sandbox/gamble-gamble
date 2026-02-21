@@ -44,6 +44,9 @@ pub enum AnimationType {
     // Non-slime animations — from TinySpells_BigWander asset pack.
     // IcebergIdle is used for the tank slime's shield visual.
     IcebergIdle,
+    // Ice impact VFX — plays once when a target gets stunned by a tank hit.
+    // Self-destructs after the animation finishes.
+    IceImpact,
 }
 
 fn default_animated_sprite() -> Sprite {
@@ -89,6 +92,10 @@ pub struct SpriteSheets {
     // TinySpells_BigWander — iceberg shield sprite
     pub iceberg_idle: Handle<Image>,
     pub iceberg_idle_layout: Handle<TextureAtlasLayout>,
+
+    // TinySpells_BigWander — ice impact VFX for stun effect
+    pub ice_impact: Handle<Image>,
+    pub ice_impact_layout: Handle<TextureAtlasLayout>,
 }
 
 impl AnimationState {
@@ -327,6 +334,20 @@ pub fn switch_animation_system(
                     true,
                 );
             }
+            // Ice impact VFX — plays once quickly (0.06s per frame) for stun effect.
+            // Non-looping so it finishes and the entity can self-despawn.
+            AnimationType::IceImpact => {
+                sprite.image = sprite_sheets.ice_impact.clone();
+                wip_texture_atlas.layout = sprite_sheets.ice_impact_layout.clone();
+                *anim_state = AnimationState::new(
+                    0.06,
+                    assets
+                        .get(&sprite_sheets.ice_impact_layout)
+                        .unwrap()
+                        .len(),
+                    false,
+                );
+            }
         }
         sprite.texture_atlas = Some(wip_texture_atlas);
     }
@@ -408,6 +429,17 @@ pub fn load_sprite_sheets(
         None,
     ));
 
+    // TinySpells_BigWander — ice impact VFX (384x32 sheet, 12 frames of 32x32)
+    let ice_impact = asset_server
+        .load("sprites/TinySpells_BigWander/ImpactFX/Ice_Impact_FX_Ground_TinySpells_FrozenTome_BigWander.png");
+    let ice_impact_layout = texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
+        UVec2::new(32, 32),
+        12,
+        1,
+        None,
+        None,
+    ));
+
     commands.insert_resource(SpriteSheets {
         slime_jump_idle,
         slime_attack,
@@ -429,6 +461,9 @@ pub fn load_sprite_sheets(
 
         iceberg_idle,
         iceberg_idle_layout,
+
+        ice_impact,
+        ice_impact_layout,
     });
 }
 
