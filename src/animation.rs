@@ -184,7 +184,7 @@ pub fn switch_animation_system(
                 sprite.image = sprite_sheets.slime_jump_idle.clone();
                 wip_texture_atlas.layout = sprite_sheets.jump_idle_layout.clone();
                 *anim_state = AnimationState::new(
-                    0.3,
+                    0.2,
                     assets.get(&sprite_sheets.jump_idle_layout).unwrap().len(),
                     true,
                 );
@@ -193,7 +193,7 @@ pub fn switch_animation_system(
                 sprite.image = sprite_sheets.slime_attack.clone();
                 wip_texture_atlas.layout = sprite_sheets.attack_layout.clone();
                 *anim_state = AnimationState::new(
-                    0.3,
+                    0.2,
                     assets.get(&sprite_sheets.attack_layout).unwrap().len(),
                     false,
                 );
@@ -202,7 +202,7 @@ pub fn switch_animation_system(
                 sprite.image = sprite_sheets.slime_death.clone();
                 wip_texture_atlas.layout = sprite_sheets.death_layout.clone();
                 *anim_state = AnimationState::new(
-                    0.3,
+                    0.2,
                     assets.get(&sprite_sheets.death_layout).unwrap().len(),
                     false,
                 );

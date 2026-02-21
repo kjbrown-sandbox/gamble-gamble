@@ -296,7 +296,7 @@ fn execute_merge_system(
                     damage: 8,
                     knockback: 0.0,
                 },
-                range: 60.0,
+                range: 100.0,
             }]),
             // Permanent marker — prevents this slime from merging again
             MergedSlime,

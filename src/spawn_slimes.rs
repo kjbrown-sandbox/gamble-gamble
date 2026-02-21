@@ -111,7 +111,7 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team) {
                 damage: 2,
                 knockback: 0.0,
             },
-            range: 60.0,
+            range: 65.0,
         }]),
         Inert,
         SpriteModification {
