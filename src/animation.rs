@@ -341,10 +341,7 @@ pub fn switch_animation_system(
                 wip_texture_atlas.layout = sprite_sheets.ice_impact_layout.clone();
                 *anim_state = AnimationState::new(
                     0.06,
-                    assets
-                        .get(&sprite_sheets.ice_impact_layout)
-                        .unwrap()
-                        .len(),
+                    assets.get(&sprite_sheets.ice_impact_layout).unwrap().len(),
                     false,
                 );
             }
@@ -431,7 +428,7 @@ pub fn load_sprite_sheets(
 
     // TinySpells_BigWander — ice impact VFX (384x32 sheet, 12 frames of 32x32)
     let ice_impact = asset_server
-        .load("sprites/TinySpells_BigWander/ImpactFX/Ice_Impact_FX_Ground_TinySpells_FrozenTome_BigWander.png");
+        .load("sprites/TinySpells_BigWander/ImpactFX/Ice_Impact_FX_MidAir_TinySpells_FrozenTome_BigWander.png");
     let ice_impact_layout = texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
         UVec2::new(32, 32),
         12,

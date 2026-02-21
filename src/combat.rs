@@ -144,7 +144,12 @@ pub struct IceImpactVfx;
 fn pick_attack_system(
     attackers: Query<
         (Entity, &KnownAttacks, &Transform, &TargetEntity),
-        (Without<ActiveAttack>, Without<Dying>, Without<Merging>, Without<Inert>),
+        (
+            Without<ActiveAttack>,
+            Without<Dying>,
+            Without<Merging>,
+            Without<Inert>,
+        ),
     >,
     targets: Query<&Transform>,
     mut commands: Commands,
@@ -225,7 +230,7 @@ fn hit_frame_check_system(
 fn on_hit_observer(
     trigger: On<OnHitEvent>,
     mut params: ParamSet<(
-        Query<&Transform>,                                        // p0: read attacker position
+        Query<&Transform>, // p0: read attacker position
         Query<(&mut Health, &mut Transform, &mut AnimationState)>, // p1: mutate target
     )>,
     mut commands: Commands,
@@ -351,11 +356,7 @@ fn attack_cleanup_system(
 /// The hit observer handles game logic (damage, stun state), while this observer
 /// handles presentation (VFX, audio). This makes it easy to add/change visual
 /// feedback without touching combat logic.
-fn on_stunned_observer(
-    trigger: On<StunnedEvent>,
-    audio: Res<GameAudio>,
-    mut commands: Commands,
-) {
+fn on_stunned_observer(trigger: On<StunnedEvent>, audio: Res<GameAudio>, mut commands: Commands) {
     // Play the stun sound. DESPAWN means the AudioPlayer entity will be
     // automatically cleaned up after the sound finishes playing.
     commands.spawn((
@@ -378,7 +379,7 @@ fn on_stunned_observer(
         entity_commands.with_child((
             IceImpactVfx,
             AnimationType::IceImpact,
-            Transform::from_xyz(0.0, 0.0, 2.0),
+            Transform::from_xyz(0.0, 0.0, 2.0).with_scale(Vec3::splat(3.0)),
         ));
     }
 }
