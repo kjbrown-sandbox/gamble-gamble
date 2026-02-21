@@ -163,7 +163,7 @@ fn check_merge_system(
             }
 
             // Roll the dice — 0.5% chance per qualifying pair per tick
-            if rng.gen::<f32>() > 0.05 {
+            if rng.gen::<f32>() > 0.005 {
                 continue;
             }
 
