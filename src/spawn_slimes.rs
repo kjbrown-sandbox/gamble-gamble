@@ -48,7 +48,7 @@ fn setup_slime_spawn_system(mut commands: Commands, save_data: Res<SaveData>) {
         },
         enemy_slimes: SlimeAmounts {
             normal_slimes: 5,
-            tanks: 0,
+            tanks: 10,
             wizards: 0,
         },
     });
@@ -194,8 +194,8 @@ fn spawn_tank_slime(commands: &mut Commands, team: Team) -> Entity {
         on_hit_effect: AttackEffect {
             damage: 2,
             knockback: 0.0,
-            stun_chance: 1.0,    // 100% stun rate — tanks always stun
-            stun_duration: 1.5,  // target is frozen for 1.5 seconds
+            stun_chance: 0.1,   // 100% stun rate — tanks always stun
+            stun_duration: 1.5, // target is frozen for 1.5 seconds
         },
         range: 65.0,
     }]));
