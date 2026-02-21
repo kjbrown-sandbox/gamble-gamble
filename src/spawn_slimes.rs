@@ -140,17 +140,33 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team) -> Entity {
         .id()
 }
 
-fn spawn_tank_slime(commands: &mut Commands, team: Team) {
+fn spawn_tank_slime(commands: &mut Commands, team: Team) -> Entity {
     let entity = spawn_normal_slime(commands, team);
 
-    commands.entity(entity).insert(Health(20));
+    // Shield sits 30px to the right in the slime's facing direction.
+    // Player slimes face right (+x), enemy slimes face left (−x).
+    let shield_x = match team {
+        Team::Player => 30.0,
+        Team::Enemy => -30.0,
+    };
+
+    // Spawn the iceberg shield as a child entity so it moves, flips,
+    // and despawns automatically with the parent slime.
+    // z = 1.0 draws the shield in front of the slime sprite.
+    commands.entity(entity).insert(Health(20)).with_child((
+        AnimationType::IcebergIdle,
+        Transform::from_xyz(shield_x, 0.0, 1.0),
+        Sprite {
+            flip_x: team == Team::Enemy,
+            ..default()
+        },
+    ));
+
+    entity
 
     /*
+     TODO:
      replace attacks with tank specific attacks
-     replace health with *2 health
-     spawn shield child
-     flip shield child if sprite_x is flipped, should be part of existing system
-
      will need to add stun chance to attack
      will need to add block chance from target enemy
      - should play sound when blocks

@@ -41,6 +41,9 @@ pub enum AnimationType {
     EnemyBigSlimeJumpIdle,
     EnemyBigSlimeAttack,
     EnemyBigSlimeDeath,
+    // Non-slime animations — from TinySpells_BigWander asset pack.
+    // IcebergIdle is used for the tank slime's shield visual.
+    IcebergIdle,
 }
 
 fn default_animated_sprite() -> Sprite {
@@ -82,6 +85,10 @@ pub struct SpriteSheets {
     pub move_small_jump_layout: Handle<TextureAtlasLayout>,
     pub hurt_layout: Handle<TextureAtlasLayout>,
     pub death_layout: Handle<TextureAtlasLayout>,
+
+    // TinySpells_BigWander — iceberg shield sprite
+    pub iceberg_idle: Handle<Image>,
+    pub iceberg_idle_layout: Handle<TextureAtlasLayout>,
 }
 
 impl AnimationState {
@@ -308,6 +315,18 @@ pub fn switch_animation_system(
                     false,
                 );
             }
+            AnimationType::IcebergIdle => {
+                sprite.image = sprite_sheets.iceberg_idle.clone();
+                wip_texture_atlas.layout = sprite_sheets.iceberg_idle_layout.clone();
+                *anim_state = AnimationState::new(
+                    0.08,
+                    assets
+                        .get(&sprite_sheets.iceberg_idle_layout)
+                        .unwrap()
+                        .len(),
+                    true,
+                );
+            }
         }
         sprite.texture_atlas = Some(wip_texture_atlas);
     }
@@ -378,6 +397,17 @@ pub fn load_sprite_sheets(
         None,
     ));
 
+    // TinySpells_BigWander — 384x32 sheet, 12 frames of 32x32
+    let iceberg_idle = asset_server
+        .load("sprites/TinySpells_BigWander/Iceberg/Iceberg_Idle_FrozenTome_BigWander.png");
+    let iceberg_idle_layout = texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
+        UVec2::new(32, 32),
+        12,
+        1,
+        None,
+        None,
+    ));
+
     commands.insert_resource(SpriteSheets {
         slime_jump_idle,
         slime_attack,
@@ -396,6 +426,9 @@ pub fn load_sprite_sheets(
         move_small_jump_layout,
         hurt_layout,
         death_layout,
+
+        iceberg_idle,
+        iceberg_idle_layout,
     });
 }
 
