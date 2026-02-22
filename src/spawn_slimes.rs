@@ -2,7 +2,7 @@ use bevy::{prelude::*, state::commands};
 use rand::Rng;
 
 use crate::{
-    animation::{AnimationType, IdleAnimation, VictoryAnimation},
+    animation::{AnimationType, IdleAnimation, SpriteSheets, VictoryAnimation},
     combat::{Attack, AttackEffect, BlockChance, KnownAttacks, Shield},
     health::{DeathAnimation, Health},
     movement::Speed,
@@ -68,6 +68,7 @@ fn spawn_slimes_system(
     mut slimes_to_spawn: ResMut<SlimesToSpawn>,
     mut timer: ResMut<SlimeSpawnTimer>,
     game_time: Res<Time>,
+    sprite_sheets: Res<SpriteSheets>,
 ) {
     if timer.0.just_finished() {
         if slimes_to_spawn.player_slimes.normal_slimes > 0 {
@@ -76,6 +77,9 @@ fn spawn_slimes_system(
         } else if slimes_to_spawn.player_slimes.tanks > 0 {
             spawn_tank_slime(&mut commands, Team::Player);
             slimes_to_spawn.player_slimes.tanks -= 1;
+        } else if slimes_to_spawn.player_slimes.wizards > 0 {
+            spawn_wizard_slime(&mut commands, Team::Player, &sprite_sheets);
+            slimes_to_spawn.player_slimes.wizards -= 1;
         }
 
         if slimes_to_spawn.enemy_slimes.normal_slimes > 0 {
@@ -84,6 +88,9 @@ fn spawn_slimes_system(
         } else if slimes_to_spawn.enemy_slimes.tanks > 0 {
             spawn_tank_slime(&mut commands, Team::Enemy);
             slimes_to_spawn.enemy_slimes.tanks -= 1;
+        } else if slimes_to_spawn.enemy_slimes.wizards > 0 {
+            spawn_wizard_slime(&mut commands, Team::Enemy, &sprite_sheets);
+            slimes_to_spawn.enemy_slimes.wizards -= 1;
         }
     }
 
@@ -213,6 +220,35 @@ fn spawn_tank_slime(commands: &mut Commands, team: Team) -> Entity {
                 ..default()
             },
         ));
+
+    entity
+}
+
+/// Takes &SpriteSheets instead of Res<SpriteSheets> because Res is a smart
+/// pointer that owns access to the resource. Passing Res by value *moves* it,
+/// so you can only call this function once — the second call would fail with
+/// "use of moved value." By borrowing with &SpriteSheets, we just take a
+/// reference, which can be shared as many times as needed.
+///
+/// This is the same reason spawn_normal_slime takes &mut Commands instead of
+/// Commands — you want to borrow, not take ownership.
+fn spawn_wizard_slime(commands: &mut Commands, team: Team, sprite_sheets: &SpriteSheets) -> Entity {
+    let entity = spawn_normal_slime(commands, team);
+
+    let x_displacement = 40.0;
+    let shield_x = match team {
+        Team::Player => x_displacement,
+        Team::Enemy => -x_displacement,
+    };
+
+    commands.entity(entity).insert(Health(5)).with_child((
+        Transform::from_xyz(shield_x, -5.0, 1.0).with_scale(Vec3::splat(4.0)),
+        Sprite {
+            image: sprite_sheets.wizard_staff.clone(),
+            flip_x: team == Team::Enemy,
+            ..default()
+        },
+    ));
 
     entity
 }

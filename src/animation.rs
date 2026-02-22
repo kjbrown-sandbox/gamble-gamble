@@ -96,6 +96,11 @@ pub struct SpriteSheets {
     // TinySpells_BigWander — ice impact VFX for stun effect
     pub ice_impact: Handle<Image>,
     pub ice_impact_layout: Handle<TextureAtlasLayout>,
+
+    // Wizard staff — static 32x32 image, no animation.
+    // Stored here alongside the sprite sheets so all asset handles live in one place,
+    // even though this one doesn't need an atlas layout (it's a single image, not a sheet).
+    pub wizard_staff: Handle<Image>,
 }
 
 impl AnimationState {
@@ -461,6 +466,8 @@ pub fn load_sprite_sheets(
 
         ice_impact,
         ice_impact_layout,
+
+        wizard_staff: asset_server.load("sprites/Staffs/my-own-2.png"),
     });
 }
 
