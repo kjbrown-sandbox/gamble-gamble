@@ -146,13 +146,13 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team) -> Entity {
                 ..default()
             },
             DeathAnimation(death_anim),
-            Health(10),
+            Health(5),
             Speed(125.0),
             KnownAttacks(vec![Attack {
                 animation: attack_anim,
                 hit_frame: 3,
                 on_hit_effect: AttackEffect {
-                    damage: 2,
+                    damage: 1,
                     knockback: 0.0,
                     ..Default::default()
                 },
@@ -202,7 +202,7 @@ fn spawn_tank_slime(commands: &mut Commands, team: Team) -> Entity {
     // BlockChance is on the parent slime (the defender), not the shield child.
     commands
         .entity(entity)
-        .insert((Health(20), BlockChance(0.2)))
+        .insert((Health(10), BlockChance(0.2)))
         .with_child((
             // Shield marker lets on_block_attack_observer find this specific child
             Shield,
