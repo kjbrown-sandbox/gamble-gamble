@@ -194,16 +194,15 @@ fn spawn_tank_slime(commands: &mut Commands, team: Team) -> Entity {
         on_hit_effect: AttackEffect {
             damage: 2,
             knockback: 0.0,
-            stun_chance: 0.1,   // 100% stun rate — tanks always stun
-            stun_duration: 1.5, // target is frozen for 1.5 seconds
+            stun_chance: 0.1,
+            stun_duration: 1.5,
         },
         range: 65.0,
     }]));
-
     // BlockChance is on the parent slime (the defender), not the shield child.
     commands
         .entity(entity)
-        .insert((Health(20), BlockChance(1.0))) // 100% block for now
+        .insert((Health(20), BlockChance(0.2)))
         .with_child((
             // Shield marker lets on_block_attack_observer find this specific child
             Shield,

@@ -410,7 +410,7 @@ fn on_stunned_observer(trigger: On<StunnedEvent>, audio: Res<GameAudio>, mut com
     // automatically cleaned up after the sound finishes playing.
     commands.spawn((
         AudioPlayer::new(audio.stun.clone()),
-        PlaybackSettings::DESPAWN,
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.5)),
     ));
 
     // Spawn ice impact VFX as a child of the stunned entity.
