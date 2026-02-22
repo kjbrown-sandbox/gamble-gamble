@@ -47,6 +47,8 @@ pub enum AnimationType {
     // Ice impact VFX — plays once when a target gets stunned by a tank hit.
     // Self-destructs after the animation finishes.
     IceImpact,
+    // Frozen spear idle — looping animation for the wizard's weapon.
+    FrozenSpearIdle,
 }
 
 fn default_animated_sprite() -> Sprite {
@@ -97,10 +99,9 @@ pub struct SpriteSheets {
     pub ice_impact: Handle<Image>,
     pub ice_impact_layout: Handle<TextureAtlasLayout>,
 
-    // Wizard staff — static 32x32 image, no animation.
-    // Stored here alongside the sprite sheets so all asset handles live in one place,
-    // even though this one doesn't need an atlas layout (it's a single image, not a sheet).
-    pub wizard_staff: Handle<Image>,
+    // Frozen spear — wizard's weapon, 256x32 sheet (8 frames of 32x32)
+    pub frozen_spear_idle: Handle<Image>,
+    pub frozen_spear_idle_layout: Handle<TextureAtlasLayout>,
 }
 
 impl AnimationState {
@@ -350,6 +351,18 @@ pub fn switch_animation_system(
                     false,
                 );
             }
+            AnimationType::FrozenSpearIdle => {
+                sprite.image = sprite_sheets.frozen_spear_idle.clone();
+                wip_texture_atlas.layout = sprite_sheets.frozen_spear_idle_layout.clone();
+                *anim_state = AnimationState::new(
+                    0.1,
+                    assets
+                        .get(&sprite_sheets.frozen_spear_idle_layout)
+                        .unwrap()
+                        .len(),
+                    true,
+                );
+            }
         }
         sprite.texture_atlas = Some(wip_texture_atlas);
     }
@@ -467,7 +480,14 @@ pub fn load_sprite_sheets(
         ice_impact,
         ice_impact_layout,
 
-        wizard_staff: asset_server.load("sprites/Staffs/my-own-2.png"),
+        frozen_spear_idle: asset_server.load("sprites/TinySpells_BigWander/FrozenSpear/FrozenSpear_Idle_TinySpells_FrozenTome_BigWander.png"),
+        frozen_spear_idle_layout: texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
+            UVec2::new(32, 32),
+            8,
+            1,
+            None,
+            None,
+        )),
     });
 }
 
