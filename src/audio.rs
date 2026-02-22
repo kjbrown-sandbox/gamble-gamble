@@ -31,7 +31,7 @@ pub fn setup_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
     let merge_alert_sound = asset_server.load("audio/beepbee.wav");
     let merge_complete_sound = asset_server.load("audio/Callsummon.wav");
     let stun_sound = asset_server.load("audio/monsterdestroyed.wav");
-    let block_sound = asset_server.load("audio/Shock.wav");
+    let block_sound = asset_server.load("audio/Frustratedenemy.wav");
 
     commands.insert_resource(GameAudio {
         slime_damage: damage_sound,

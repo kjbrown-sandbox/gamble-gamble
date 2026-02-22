@@ -1,4 +1,4 @@
-use bevy::{prelude::*, state::commands};
+use bevy::{audio::Volume, prelude::*, state::commands};
 use rand::{seq::IteratorRandom, Rng};
 
 use crate::{
@@ -451,7 +451,7 @@ fn on_block_attack_observer(
     // Play block sound
     commands.spawn((
         AudioPlayer::new(audio.block.clone()),
-        PlaybackSettings::DESPAWN,
+        PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.5)),
     ));
 
     // Get the children of the defender
