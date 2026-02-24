@@ -228,14 +228,14 @@ fn spawn_slimes(
     // dark/opaque at the top and bottom edges and transparent in the middle.
     // This is created in code rather than loaded from a file — Bevy's Assets<Image>
     // lets you add images you build yourself, not just ones from disk.
-    let vignette_height: u32 = 20;
+    let vignette_height: u32 = 64;
     let mut pixel_data = Vec::with_capacity((vignette_height * 4) as usize);
     for y in 0..vignette_height {
         let t = y as f32 / (vignette_height - 1) as f32;
         // Squaring the distance from center makes the fade nonlinear:
         // mostly transparent in the middle, ramping up sharply near edges.
         let edge_dist = (2.0 * (t - 0.5)).powi(2);
-        let alpha = (edge_dist * 200.0) as u8;
+        let alpha = (edge_dist * 215.0) as u8;
         pixel_data.extend_from_slice(&[0, 0, 0, alpha]);
     }
     let mut vignette_image = Image::new(

@@ -113,7 +113,7 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team) -> Entity {
 
     let player_x = rng.gen_range(-500.0..-100.0);
     let enemy_x = rng.gen_range(100.0..500.0);
-    let y = rng.gen_range(-300.0..300.0);
+    let y = rng.gen_range(-200.0..200.0);
     let x = match team {
         Team::Player => player_x,
         Team::Enemy => enemy_x,
