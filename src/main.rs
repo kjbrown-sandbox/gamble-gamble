@@ -1,4 +1,8 @@
 use bevy::prelude::*;
+// In Bevy 0.18, camera types moved to bevy::camera (the bevy_camera crate),
+// NOT bevy::render::camera. This is a common gotcha when reading older tutorials.
+use bevy::camera::ScalingMode;
+use bevy::window::{WindowResizeConstraints, WindowResolution};
 use rand::seq::IteratorRandom;
 use rand::Rng;
 
@@ -23,7 +27,33 @@ fn main() {
             // blurry when scaled up because bilinear interpolation blends
             // neighboring pixels together. Nearest-neighbor just picks the
             // closest texel, preserving hard pixel edges.
-            DefaultPlugins.set(ImagePlugin::default_nearest()),
+            // We chain multiple .set() calls on DefaultPlugins to override
+            // individual sub-plugins. Each .set() replaces one plugin's config
+            // while leaving the rest at their defaults.
+            DefaultPlugins
+                .set(ImagePlugin::default_nearest())
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        // Sets the initial window size to 1200x800 pixels.
+                        // This matches our "arena" — the world space the camera
+                        // will show. Having the window match the camera's fixed
+                        // projection means 1 world unit = 1 pixel at default zoom.
+                        // WindowResolution::new() takes u32 (physical pixels),
+                        // not f32. This is the actual pixel count the OS allocates.
+                        resolution: WindowResolution::new(1200, 800),
+                        // Prevent the user from shrinking the window below the
+                        // arena size. Without this, resizing smaller would either
+                        // clip content or leave black bars depending on scaling.
+                        resize_constraints: WindowResizeConstraints {
+                            min_width: 1200.0,
+                            min_height: 800.0,
+                            ..default()
+                        },
+                        title: "Never Tell Me the Odds".into(),
+                        ..default()
+                    }),
+                    ..default()
+                }),
             save_load::SaveLoadPlugin,
             audio::AudioPlugin,
             animation::AnimationPlugin,
@@ -113,7 +143,36 @@ fn spawn_slimes(mut commands: Commands, save_data: Res<SaveData>, enemy_armies: 
     //      ));
     //  }
 
-    commands.spawn(Camera2d);
+    // Camera2d is a marker component that says "this is a 2D camera."
+    // When spawned, Bevy's #[require] attribute automatically adds Camera,
+    // Projection, and Frustum components with sensible 2D defaults.
+    //
+    // We override the Projection to use ScalingMode::Fixed so the camera
+    // ALWAYS shows exactly 1200x800 world units, no matter the window size.
+    // If the user makes the window larger, everything scales up — the visible
+    // area stays the same. This is ideal for pixel art games where you want
+    // a consistent viewport.
+    //
+    // Important Bevy 0.18 detail: OrthographicProjection is NOT a standalone
+    // component. It's wrapped inside the Projection enum:
+    //   Projection::Orthographic(OrthographicProjection { ... })
+    // This is because a camera could also use Projection::Perspective for 3D.
+    // The enum lets Bevy handle both projection types with one component slot.
+    //
+    // Alternative scaling modes worth knowing:
+    // - WindowSize: 1 world unit = 1 pixel (visible area changes with window)
+    // - AutoMin/AutoMax: adapts to aspect ratio while guaranteeing min/max area
+    // - FixedVertical/FixedHorizontal: locks one axis, stretches the other
+    commands.spawn((
+        Camera2d,
+        Projection::Orthographic(OrthographicProjection {
+            scaling_mode: ScalingMode::Fixed {
+                width: 1200.0,
+                height: 800.0,
+            },
+            ..OrthographicProjection::default_2d()
+        }),
+    ));
 }
 
 /// Debug system: press spacebar to kill a random slime.
