@@ -235,7 +235,7 @@ fn spawn_slimes(
         // Squaring the distance from center makes the fade nonlinear:
         // mostly transparent in the middle, ramping up sharply near edges.
         let edge_dist = (2.0 * (t - 0.5)).powi(2);
-        let alpha = (edge_dist * 255.0) as u8;
+        let alpha = (edge_dist * 200.0) as u8;
         pixel_data.extend_from_slice(&[0, 0, 0, alpha]);
     }
     let mut vignette_image = Image::new(

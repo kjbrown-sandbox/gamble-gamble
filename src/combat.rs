@@ -681,7 +681,7 @@ fn floating_text_system(
 
         transform.translation.y += 50.0 * time.delta_secs();
         let alpha = 1.0 - floating.0.fraction();
-        text_color.0 = Color::srgba(1.0, 1.0, 0.3, alpha);
+        text_color.0 = Color::srgba(1.0, 1.0, 1.0, alpha);
 
         if floating.0.is_finished() {
             if let Ok(mut cmds) = commands.get_entity(entity) {
