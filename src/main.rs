@@ -55,7 +55,15 @@ impl ArenaBounds {
 }
 
 fn main() {
-    App::new()
+    let mut app = App::new();
+
+    // By default, Bevy panics when a deferred command targets a despawned entity.
+    // `warn` downgrades that to a log warning instead. This is fine for our game —
+    // the occasional stale command (e.g. removing a component from an entity that
+    // was cascade-despawned) is harmless and not worth crashing over.
+    app.set_error_handler(bevy::ecs::error::warn);
+
+    app
         // insert_resource() adds a Resource to the ECS world. It's available
         // immediately to any system that requests Res<ArenaBounds>.
         // We insert this before plugins so it's ready for any startup system.

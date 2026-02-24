@@ -229,8 +229,8 @@ pub fn out_of_bounds_system(
     arena: Res<ArenaBounds>,
     mut commands: Commands,
 ) {
-    let half_w = arena.half_width() - 32.0;
-    let half_h = arena.half_height() - 32.0;
+    let half_w = arena.half_width() - 50.0;
+    let half_h = arena.half_height() - 50.0;
 
     for (entity, mut transform, knockback) in &mut query {
         let pos = transform.translation;

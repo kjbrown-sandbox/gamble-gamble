@@ -254,7 +254,7 @@ fn on_add_pre_merge_system(
                 Text2d::new("!"),
                 TextFont {
                     font: game_font.0.clone(),
-                    font_size: 28.0,
+                    font_size: 40.0,
                     ..default()
                 },
                 TextColor(Color::WHITE),
