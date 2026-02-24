@@ -2,6 +2,10 @@ use bevy::prelude::*;
 
 use crate::movement::TargetEntity;
 
+/// Marker for entities whose z-position should not be touched by y_sort_system.
+#[derive(Component)]
+pub struct Background;
+
 pub struct RenderPlugin;
 
 impl Plugin for RenderPlugin {
@@ -25,7 +29,7 @@ fn face_target_system(
 }
 
 /// Sorts sprites by y position so lower enemies appear in front
-fn y_sort_system(mut query: Query<&mut Transform, With<Sprite>>) {
+fn y_sort_system(mut query: Query<&mut Transform, (With<Sprite>, Without<Background>)>) {
     for mut transform in &mut query {
         // Negate y: lower y (bottom of screen) -> higher z (drawn in front)
         // Scale down to keep z values small and leave room for other layers
