@@ -261,7 +261,7 @@ fn spawn_wizard_slime(commands: &mut Commands, team: Team) -> Entity {
             team,                        // inherits parent's team so it targets enemies
             PickTargetStrategy::Closest, // constantly re-evaluates to always hit the nearest enemy
             Speed(25.0),                 // moves slowly toward its target
-            StaysNearParent(50.0),       // but can't drift more than 100 units from the wizard
+            StaysNearParent(50.0),       // but can't drift more than 50 units from the wizard
             KnownAttacks(vec![Attack {
                 animation: AnimationType::FrozenSpearAttack,
                 hit_frame: 5, // damage lands mid-animation

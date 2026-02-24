@@ -4,7 +4,7 @@ use bevy::prelude::*;
 
 use crate::combat::ActiveAttack;
 use crate::health::{Dying, Health};
-use crate::setup_round::Inert;
+use crate::setup_round::{Inert, StunTimer};
 use crate::special_abilities::{Merging, PreMerging};
 use crate::ArenaBounds;
 
@@ -60,8 +60,8 @@ pub fn move_to_target_system(
             Without<PreMerging>,
             Without<Merging>,
             Without<Dying>,
-            Without<Knockback>,     // Don't fight with knockback lerp
-            Without<ActiveAttack>,  // Freeze in place while attacking
+            Without<Knockback>,    // Don't fight with knockback lerp
+            Without<ActiveAttack>, // Freeze in place while attacking
         ),
     >,
     targets: Query<&GlobalTransform>,
@@ -222,14 +222,38 @@ pub fn unsmush_system(
 /// .clamp() is Rust's built-in method on f32: it returns the value pinned
 /// between a min and max. Cleaner than chaining .min().max().
 pub fn out_of_bounds_system(
-    mut query: Query<&mut Transform, (With<Sprite>, Without<ChildOf>)>,
+    mut query: Query<
+        (Entity, &mut Transform, Option<&Knockback>),
+        (With<Sprite>, Without<ChildOf>),
+    >,
     arena: Res<ArenaBounds>,
+    mut commands: Commands,
 ) {
-    let half_w = arena.half_width();
-    let half_h = arena.half_height();
+    let half_w = arena.half_width() - 32.0;
+    let half_h = arena.half_height() - 32.0;
 
-    for mut transform in &mut query {
-        transform.translation.x = transform.translation.x.clamp(-half_w, half_w);
-        transform.translation.y = transform.translation.y.clamp(-half_h, half_h);
+    for (entity, mut transform, knockback) in &mut query {
+        let pos = transform.translation;
+        let out_of_bounds = pos.x < -half_w || pos.x > half_w || pos.y < -half_h || pos.y > half_h;
+
+        // Wall slam: if the entity is being knocked into the wall and the
+        // knockback target is more than 50 units past the arena edge, stun it.
+        if out_of_bounds {
+            if let Some(kb) = knockback {
+                let overflow_x = (kb.target_position.x.abs() - half_w).max(0.0);
+                let overflow_y = (kb.target_position.y.abs() - half_h).max(0.0);
+                let overflow = (overflow_x * overflow_x + overflow_y * overflow_y).sqrt();
+
+                if overflow > 50.0 {
+                    if let Ok(mut cmds) = commands.get_entity(entity) {
+                        cmds.insert((Inert, StunTimer(Timer::from_seconds(1.5, TimerMode::Once))));
+                        cmds.remove::<(ActiveAttack, Knockback)>();
+                    }
+                }
+            }
+        }
+
+        transform.translation.x = pos.x.clamp(-half_w, half_w);
+        transform.translation.y = pos.y.clamp(-half_h, half_h);
     }
 }
