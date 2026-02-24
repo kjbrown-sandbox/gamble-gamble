@@ -14,8 +14,39 @@ use crate::movement::Speed;
 use crate::pick_target::{PickTargetStrategy, Team};
 use crate::save_load::SaveData;
 
+/// Defines the playable area in world units. The camera shows this region
+/// (centered at the origin), and systems like out_of_bounds_system use it
+/// to clamp entity positions.
+///
+/// This is a Resource — Bevy's term for singleton data that lives in the ECS
+/// world but isn't attached to any specific entity. Any system can request it
+/// via Res<ArenaBounds> (immutable) or ResMut<ArenaBounds> (mutable).
+#[derive(Resource)]
+pub struct ArenaBounds {
+    pub width: f32,
+    pub height: f32,
+}
+
+impl ArenaBounds {
+    /// Half-extents for bounds checking. Since the camera is centered at the
+    /// origin, an 1200-wide arena spans from -600 to +600.
+    pub fn half_width(&self) -> f32 {
+        self.width / 2.0
+    }
+    pub fn half_height(&self) -> f32 {
+        self.height / 2.0
+    }
+}
+
 fn main() {
     App::new()
+        // insert_resource() adds a Resource to the ECS world. It's available
+        // immediately to any system that requests Res<ArenaBounds>.
+        // We insert this before plugins so it's ready for any startup system.
+        .insert_resource(ArenaBounds {
+            width: 1200.0,
+            height: 800.0,
+        })
         // Bevy's add_plugins() only supports tuples of up to 15 elements.
         // When you exceed that, you nest them into sub-tuples. Each sub-tuple
         // counts as one element in the outer tuple. This is a Bevy limitation,
@@ -88,7 +119,12 @@ fn main() {
 ///
 /// Note: we take Res<T> (immutable reference) since we only need to read these.
 /// If we needed to modify them, we'd use ResMut<T>.
-fn spawn_slimes(mut commands: Commands, save_data: Res<SaveData>, enemy_armies: Res<EnemyArmies>) {
+fn spawn_slimes(
+    mut commands: Commands,
+    save_data: Res<SaveData>,
+    enemy_armies: Res<EnemyArmies>,
+    arena: Res<ArenaBounds>,
+) {
     //  let mut rng = rand::thread_rng();
 
     //  // Player army — count comes from the save file
@@ -167,8 +203,8 @@ fn spawn_slimes(mut commands: Commands, save_data: Res<SaveData>, enemy_armies: 
         Camera2d,
         Projection::Orthographic(OrthographicProjection {
             scaling_mode: ScalingMode::Fixed {
-                width: 1200.0,
-                height: 800.0,
+                width: arena.width,
+                height: arena.height,
             },
             ..OrthographicProjection::default_2d()
         }),

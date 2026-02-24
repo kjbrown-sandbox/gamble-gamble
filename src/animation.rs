@@ -49,6 +49,9 @@ pub enum AnimationType {
     IceImpact,
     // Frozen spear idle — looping animation for the wizard's weapon.
     FrozenSpearIdle,
+    // Frozen spear attack — non-looping attack animation for the wizard's weapon.
+    // The spear attacks independently from the parent wizard slime.
+    FrozenSpearAttack,
 }
 
 fn default_animated_sprite() -> Sprite {
@@ -102,6 +105,10 @@ pub struct SpriteSheets {
     // Frozen spear — wizard's weapon, 256x32 sheet (8 frames of 32x32)
     pub frozen_spear_idle: Handle<Image>,
     pub frozen_spear_idle_layout: Handle<TextureAtlasLayout>,
+
+    // Frozen spear attack — 320x32 sheet (10 frames of 32x32)
+    pub frozen_spear_attack: Handle<Image>,
+    pub frozen_spear_attack_layout: Handle<TextureAtlasLayout>,
 }
 
 impl AnimationState {
@@ -363,6 +370,18 @@ pub fn switch_animation_system(
                     true,
                 );
             }
+            AnimationType::FrozenSpearAttack => {
+                sprite.image = sprite_sheets.frozen_spear_attack.clone();
+                wip_texture_atlas.layout = sprite_sheets.frozen_spear_attack_layout.clone();
+                *anim_state = AnimationState::new(
+                    0.1,
+                    assets
+                        .get(&sprite_sheets.frozen_spear_attack_layout)
+                        .unwrap()
+                        .len(),
+                    false, // non-looping — plays once per attack
+                );
+            }
         }
         sprite.texture_atlas = Some(wip_texture_atlas);
     }
@@ -484,6 +503,16 @@ pub fn load_sprite_sheets(
         frozen_spear_idle_layout: texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
             UVec2::new(32, 32),
             8,
+            1,
+            None,
+            None,
+        )),
+
+        // Frozen spear attack — 320x32 sheet = 10 frames of 32x32
+        frozen_spear_attack: asset_server.load("sprites/TinySpells_BigWander/FrozenSpear/FrozenSpear_Attack1_TinySpells_FrozenTome_BigWander.png"),
+        frozen_spear_attack_layout: texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
+            UVec2::new(32, 32),
+            10,
             1,
             None,
             None,

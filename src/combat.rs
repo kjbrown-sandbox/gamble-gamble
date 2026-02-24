@@ -40,8 +40,9 @@ impl Plugin for CombatPlugin {
                 .chain(),
         );
 
-        // ice_vfx_cleanup runs independently — it just watches for finished VFX and despawns them
-        app.add_systems(Update, ice_vfx_cleanup_system);
+        // attack_cooldown_system runs independently — it just ticks cooldown timers
+        // and removes them when they expire. No ordering dependency on the combat chain.
+        app.add_systems(Update, (ice_vfx_cleanup_system, attack_cooldown_system));
     }
 }
 
@@ -88,6 +89,21 @@ pub struct AttackEffect {
     /// How long the stun lasts in seconds. Only matters if stun_chance > 0.
     pub stun_duration: f32,
 }
+
+/// Permanent config: how many seconds to wait between attacks.
+/// Entities without this component attack as soon as they're in range (existing behavior).
+/// This is useful for child entities like the frozen spear that would otherwise attack
+/// every single frame (since they're always in range of something). The cooldown makes
+/// their DPS controllable without changing animation speed or damage numbers.
+#[derive(Component)]
+pub struct TimeBetweenAttacks(pub f32);
+
+/// Temporary timer: inserted after an attack finishes, removed when it expires.
+/// While present, pick_attack_system skips this entity (via Without<AttackCooldown>).
+/// This follows the same pattern as ActiveAttack — presence/absence of a component
+/// acts as state. The entity is "cooling down" while this component exists.
+#[derive(Component)]
+pub struct AttackCooldown(pub Timer);
 
 /// Marks an entity as currently performing an attack.
 /// This is a *temporary* component — it gets added when an attack starts
@@ -166,15 +182,19 @@ pub struct BlockedAttackEvent {
 /// Inert already blocks movement and target picking — this closes the last gap.
 fn pick_attack_system(
     attackers: Query<
-        (Entity, &KnownAttacks, &Transform, &TargetEntity),
+        (Entity, &KnownAttacks, &GlobalTransform, &TargetEntity),
         (
             Without<ActiveAttack>,
+            Without<AttackCooldown>, // Entities on cooldown can't start new attacks
             Without<Dying>,
             Without<Merging>,
             Without<Inert>,
         ),
     >,
-    targets: Query<&Transform>,
+    // GlobalTransform gives world-space position. This is critical for child entities
+    // (like the frozen spear) whose local Transform is relative to their parent.
+    // For top-level entities, GlobalTransform == Transform, so nothing changes for them.
+    targets: Query<&GlobalTransform>,
     mut commands: Commands,
 ) {
     let mut rng = rand::thread_rng();
@@ -184,9 +204,10 @@ fn pick_attack_system(
             continue;
         };
 
+        // Use translation() method on GlobalTransform (not .translation field like Transform)
         let distance = attacker_transform
-            .translation
-            .distance(target_transform.translation);
+            .translation()
+            .distance(target_transform.translation());
 
         // Filter to only attacks whose range covers the current distance,
         // then randomly choose one. choose() returns None if no attacks are in range.
@@ -257,7 +278,7 @@ fn hit_frame_check_system(
 fn on_hit_observer(
     trigger: On<OnHitEvent>,
     mut params: ParamSet<(
-        Query<&Transform>, // p0: read attacker position
+        Query<&GlobalTransform>, // p0: read attacker world position (GlobalTransform for children)
         Query<(
             &mut Health,
             &mut Transform,
@@ -267,12 +288,14 @@ fn on_hit_observer(
     )>,
     mut commands: Commands,
 ) {
-    // Read the attacker's position first (using p0), then release it.
+    // Read the attacker's world-space position first (using p0), then release it.
+    // GlobalTransform is needed because the attacker might be a child entity (like the spear),
+    // whose local Transform is relative to its parent. translation() gives world coords.
     let Some(attacker_pos) = params
         .p0()
         .get(trigger.attacker)
         .ok()
-        .map(|t| t.translation)
+        .map(|t| t.translation())
     else {
         return;
     };
@@ -383,17 +406,54 @@ fn attack_cleanup_system(
     // Adding a new creature type? Just give it an IdleAnimation when you spawn it —
     // this system handles it automatically.
     mut query: Query<
-        (Entity, &AnimationState, &mut AnimationType, &IdleAnimation),
+        (
+            Entity,
+            &AnimationState,
+            &mut AnimationType,
+            &IdleAnimation,
+            Option<&TimeBetweenAttacks>, // None for entities without a cooldown config
+        ),
         (With<ActiveAttack>, Without<Dying>, Without<Inert>),
     >,
 ) {
-    for (entity, anim_state, mut animation_type, idle_animation) in query.iter_mut() {
+    for (entity, anim_state, mut animation_type, idle_animation, time_between_attacks) in
+        query.iter_mut()
+    {
         if anim_state.finished {
             // Remove ActiveAttack so pick_attack_system can assign a new attack.
-            commands.entity(entity).remove::<ActiveAttack>();
+            // If TimeBetweenAttacks is present, also insert an AttackCooldown timer
+            // so the entity waits before attacking again. Without this, the spear
+            // (which is always in range) would attack every frame.
+            let mut entity_commands = commands.entity(entity);
+            entity_commands.remove::<ActiveAttack>();
+
+            if let Some(TimeBetweenAttacks(duration)) = time_between_attacks {
+                if *duration > 0.0 {
+                    entity_commands
+                        .insert(AttackCooldown(Timer::from_seconds(*duration, TimerMode::Once)));
+                }
+            }
+
             // Return to this entity's idle animation. No need to match on team
             // or merged status — the entity already knows its own idle animation.
             *animation_type = idle_animation.0;
+        }
+    }
+}
+
+/// Ticks AttackCooldown timers and removes them when they expire.
+/// This runs independently of the combat chain — it just counts down and removes.
+/// Once the cooldown component is gone, pick_attack_system can assign a new attack
+/// (because its Without<AttackCooldown> filter will match again).
+fn attack_cooldown_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut AttackCooldown)>,
+) {
+    for (entity, mut cooldown) in query.iter_mut() {
+        cooldown.0.tick(time.delta());
+        if cooldown.0.is_finished() {
+            commands.entity(entity).remove::<AttackCooldown>();
         }
     }
 }

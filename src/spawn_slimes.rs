@@ -3,7 +3,7 @@ use rand::Rng;
 
 use crate::{
     animation::{AnimationType, IdleAnimation, VictoryAnimation},
-    combat::{Attack, AttackEffect, BlockChance, KnownAttacks, Shield},
+    combat::{Attack, AttackEffect, BlockChance, KnownAttacks, Shield, TimeBetweenAttacks},
     health::{DeathAnimation, Health},
     movement::Speed,
     pick_target::{PickTargetStrategy, Team},
@@ -47,8 +47,8 @@ fn setup_slime_spawn_system(mut commands: Commands, save_data: Res<SaveData>) {
             wizards: save_data.wizards,
         },
         enemy_slimes: SlimeAmounts {
-            normal_slimes: 5,
-            tanks: 10,
+            normal_slimes: 2,
+            tanks: 0,
             wizards: 0,
         },
     });
@@ -234,11 +234,30 @@ fn spawn_wizard_slime(commands: &mut Commands, team: Team) -> Entity {
 
     commands.entity(entity).insert(Health(5)).with_child((
         AnimationType::FrozenSpearIdle,
+        IdleAnimation(AnimationType::FrozenSpearIdle),
         Transform::from_xyz(shield_x, -10.0, 1.0).with_scale(Vec3::splat(4.0)),
         Sprite {
             flip_x: team == Team::Enemy,
             ..default()
         },
+        // ── Combat components — spear fights independently ──
+        // The spear gets its own target, its own attacks, and its own cooldown.
+        // It flows through the same combat pipeline as every other entity —
+        // no special-casing needed. This is the ECS way: same components,
+        // same systems, different behavior via different data.
+        team,                      // inherits parent's team so it targets enemies
+        PickTargetStrategy::Close, // picks its own target
+        KnownAttacks(vec![Attack {
+            animation: AnimationType::FrozenSpearAttack,
+            hit_frame: 5, // damage lands mid-animation
+            on_hit_effect: AttackEffect {
+                damage: 1,
+                knockback: 200.0,
+                ..Default::default()
+            },
+            range: 65.0,
+        }]),
+        TimeBetweenAttacks(2.0), // 2-second cooldown prevents spamming every frame
     ));
 
     entity
