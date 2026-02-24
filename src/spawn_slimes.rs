@@ -5,7 +5,7 @@ use crate::{
     animation::{AnimationType, IdleAnimation, VictoryAnimation},
     combat::{Attack, AttackEffect, BlockChance, KnownAttacks, Shield, TimeBetweenAttacks},
     health::{DeathAnimation, Health},
-    movement::Speed,
+    movement::{Speed, StaysNearParent},
     pick_target::{PickTargetStrategy, Team},
     save_load::SaveData,
     setup_round::Inert,
@@ -47,9 +47,9 @@ fn setup_slime_spawn_system(mut commands: Commands, save_data: Res<SaveData>) {
             wizards: save_data.wizards,
         },
         enemy_slimes: SlimeAmounts {
-            normal_slimes: 2,
+            normal_slimes: 0,
             tanks: 0,
-            wizards: 0,
+            wizards: 2,
         },
     });
 
@@ -236,17 +236,19 @@ fn spawn_wizard_slime(commands: &mut Commands, team: Team) -> Entity {
         AnimationType::FrozenSpearIdle,
         IdleAnimation(AnimationType::FrozenSpearIdle),
         Transform::from_xyz(shield_x, -10.0, 1.0).with_scale(Vec3::splat(4.0)),
-        Sprite {
-            flip_x: team == Team::Enemy,
-            ..default()
-        },
+        //   Sprite {
+        //       flip_x: team == Team::Enemy,
+        //       ..default()
+        //   },
         // ── Combat components — spear fights independently ──
         // The spear gets its own target, its own attacks, and its own cooldown.
         // It flows through the same combat pipeline as every other entity —
         // no special-casing needed. This is the ECS way: same components,
         // same systems, different behavior via different data.
-        team,                      // inherits parent's team so it targets enemies
-        PickTargetStrategy::Close, // picks its own target
+        team,                        // inherits parent's team so it targets enemies
+        PickTargetStrategy::Closest, // constantly re-evaluates to always hit the nearest enemy
+        Speed(25.0),                 // moves slowly toward its target
+        StaysNearParent(50.0),       // but can't drift more than 100 units from the wizard
         KnownAttacks(vec![Attack {
             animation: AnimationType::FrozenSpearAttack,
             hit_frame: 5, // damage lands mid-animation

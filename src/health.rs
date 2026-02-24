@@ -58,6 +58,13 @@ pub fn when_starts_dying_system(
     //  mut remove_from_target: Query<(Entity, &TargetEntity),
     dying_entities: Query<Entity, Added<Dying>>,
     mut entities_with_targets: Query<(Entity, &TargetEntity)>,
+    // Query children of dying entities so we can propagate Dying to them.
+    // Without this, child entities (like the wizard's spear) continue to be
+    // processed by targeting/combat/movement systems even while their parent
+    // is playing its death animation. When the parent finally despawns (which
+    // cascade-despawns children), any commands those systems queued for the
+    // child will execute on a dead entity and crash.
+    children_query: Query<&Children>,
     audio: Res<GameAudio>,
 ) {
     if !query.is_empty() {
@@ -78,6 +85,23 @@ pub fn when_starts_dying_system(
         for (entity, target) in entities_with_targets.iter_mut() {
             if target.0 == dying_entity {
                 commands.entity(entity).remove::<TargetEntity>();
+            }
+        }
+
+        // Propagate Dying to all children of the dying entity.
+        // This is the key fix for child entities like the frozen spear:
+        // without it, the spear keeps being processed by systems (targeting,
+        // combat, movement) throughout the parent's death animation. Those
+        // systems queue deferred commands for the spear. Then when the parent
+        // finally despawns, it cascade-despawns the spear, and those queued
+        // commands execute on a dead entity → crash.
+        //
+        // By giving children Dying immediately, all systems with Without<Dying>
+        // filters skip them. By the time the parent is actually despawned,
+        // no system has queued any commands for the children.
+        if let Ok(children) = children_query.get(dying_entity) {
+            for child in children.iter() {
+                commands.entity(child).insert(Dying);
             }
         }
     }
