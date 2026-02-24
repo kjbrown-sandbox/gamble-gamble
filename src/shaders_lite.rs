@@ -33,7 +33,9 @@ pub fn damage_tint_system(
     for (entity, mut sprite, mut damage_tint) in query.iter_mut() {
         damage_tint.0.tick(time.delta());
         if damage_tint.0.is_finished() {
-            commands.entity(entity).remove::<DamageTint>();
+            if let Ok(mut cmds) = commands.get_entity(entity) {
+                cmds.remove::<DamageTint>();
+            }
             sprite.color = Color::WHITE;
         }
     }
@@ -48,9 +50,10 @@ pub struct Flash(pub Timer);
 
 pub fn on_add_flash(mut query: Query<&mut Sprite, Added<Flash>>) {
     for mut sprite in query.iter_mut() {
-        // Bright white with a slight blue tint — visually distinct from
-        // the red DamageTint so the player can tell "blocked" from "hurt."
-        sprite.color = Color::srgba(0.8, 0.85, 1.0, 1.0);
+        // Values > 1.0 multiply the texture color above its normal brightness.
+        // This blows out every pixel toward pure white — even dark parts of the
+        // shield texture hit 1.0 after the multiply, so the whole sprite flashes.
+        sprite.color = Color::linear_rgba(10.0, 10.0, 10.0, 1.0);
     }
 }
 
@@ -62,7 +65,9 @@ pub fn flash_system(
     for (entity, mut sprite, mut flash) in query.iter_mut() {
         flash.0.tick(time.delta());
         if flash.0.is_finished() {
-            commands.entity(entity).remove::<Flash>();
+            if let Ok(mut cmds) = commands.get_entity(entity) {
+                cmds.remove::<Flash>();
+            }
             sprite.color = Color::WHITE;
         }
     }

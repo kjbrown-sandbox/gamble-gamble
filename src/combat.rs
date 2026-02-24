@@ -10,6 +10,7 @@ use crate::{
     setup_round::{Inert, StunTimer},
     shaders_lite::Flash,
     special_abilities::Merging,
+    GameFont,
 };
 
 pub struct CombatPlugin;
@@ -43,7 +44,15 @@ impl Plugin for CombatPlugin {
 
         // attack_cooldown_system runs independently — it just ticks cooldown timers
         // and removes them when they expire. No ordering dependency on the combat chain.
-        app.add_systems(Update, (ice_vfx_cleanup_system, attack_cooldown_system));
+        app.add_systems(
+            Update,
+            (
+                ice_vfx_cleanup_system,
+                attack_cooldown_system,
+                shield_scale_punch_system,
+                floating_text_system,
+            ),
+        );
     }
 }
 
@@ -177,6 +186,20 @@ pub struct BlockChance(pub f32);
 /// The on_block_attack_observer uses this to find the shield and flash it white.
 #[derive(Component)]
 pub struct Shield;
+
+/// Temporary component that drives a "punch" scale animation on the shield.
+/// Same pattern as Knockback and Flash — insert to start, system ticks, remove when done.
+/// Stores the original scale so we restore it exactly rather than assuming a value.
+#[derive(Component)]
+pub struct ShieldScalePunch {
+    pub original_scale: Vec3,
+    pub timer: Timer,
+}
+
+/// Standalone floating text entity (not a child). Spawned at world position
+/// so it doesn't follow the shield/slime — it just floats up and fades away.
+#[derive(Component)]
+pub struct FloatingText(pub Timer);
 
 /// Fired when an attack is blocked. The on_block_attack_observer reacts to this
 /// by flashing the shield white and playing a block sound.
@@ -419,8 +442,7 @@ fn on_hit_observer(
             .spawn((
                 IceTrapVfx,
                 AnimationType::IceTrapSpawn,
-                Transform::from_xyz(target_pos.x, target_pos.y, 2.0)
-                    .with_scale(Vec3::splat(3.0)),
+                Transform::from_xyz(target_pos.x, target_pos.y, 2.0).with_scale(Vec3::splat(3.0)),
             ))
             .with_child((
                 IceImpactVfx,
@@ -552,30 +574,45 @@ fn on_stunned_observer(trigger: On<StunnedEvent>, audio: Res<GameAudio>, mut com
 fn on_block_attack_observer(
     trigger: On<BlockedAttackEvent>,
     children_query: Query<&Children>,
-    shield_query: Query<Entity, With<Shield>>,
+    shield_query: Query<(&GlobalTransform, &Transform), With<Shield>>,
     audio: Res<GameAudio>,
+    game_font: Res<GameFont>,
     mut commands: Commands,
 ) {
-    // Play block sound
     commands.spawn((
         AudioPlayer::new(audio.block.clone()),
         PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.5)),
     ));
 
-    // Get the children of the defender
     let Ok(children) = children_query.get(trigger.defender) else {
         return;
     };
 
     for child in children.iter() {
-        // get() returns Ok(Entity) if this child has the Shield component.
-        // We feed that directly into get_entity() to get commands for it.
-        // This collapses "does it have Shield?" and "give me commands for it"
-        // into a single chain instead of two nested if-lets.
-        if let Ok(shield_entity) = shield_query.get(child) {
-            if let Ok(mut shield_commands) = commands.get_entity(shield_entity) {
-                shield_commands.insert(Flash(Timer::from_seconds(0.08, TimerMode::Once)));
+        if let Ok((global_transform, transform)) = shield_query.get(child) {
+            if let Ok(mut shield_commands) = commands.get_entity(child) {
+                shield_commands.insert((
+                    Flash(Timer::from_seconds(0.2, TimerMode::Once)),
+                    ShieldScalePunch {
+                        original_scale: transform.scale,
+                        timer: Timer::from_seconds(0.3, TimerMode::Once),
+                    },
+                ));
             }
+
+            // Spawn floating "BLOCKED!" text at the shield's world position
+            let pos = global_transform.translation();
+            commands.spawn((
+                FloatingText(Timer::from_seconds(1.3, TimerMode::Once)),
+                Text2d::new("blocked!"),
+                TextFont {
+                    font: game_font.0.clone(),
+                    font_size: 18.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                Transform::from_xyz(pos.x, pos.y + 20.0, 10.0),
+            ));
         }
     }
 }
@@ -590,12 +627,66 @@ fn ice_vfx_cleanup_system(
 ) {
     for (entity, anim_state) in impact_query.iter() {
         if anim_state.finished {
-            commands.entity(entity).despawn();
+            // IceImpactVfx is a child entity — parent could be cascade-despawned
+            // by when_finishes_dying_system in the same command batch.
+            if let Ok(mut cmds) = commands.get_entity(entity) {
+                cmds.despawn();
+            }
         }
     }
     for (entity, anim_state) in trap_query.iter() {
         if anim_state.finished {
-            commands.entity(entity).despawn();
+            if let Ok(mut cmds) = commands.get_entity(entity) {
+                cmds.despawn();
+            }
+        }
+    }
+}
+
+/// Drives the shield's "punch" scale animation: grows to 1.5x then settles back.
+/// Uses a sine curve for a snappy grow-then-shrink feel. Snaps to original_scale
+/// on finish and removes the component so the shield returns to normal.
+fn shield_scale_punch_system(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut Transform, &mut ShieldScalePunch)>,
+    time: Res<Time>,
+) {
+    for (entity, mut transform, mut punch) in query.iter_mut() {
+        punch.timer.tick(time.delta());
+        let t = punch.timer.fraction();
+
+        if punch.timer.is_finished() {
+            transform.scale = punch.original_scale;
+            // Shield is a child entity — if the parent dies mid-punch, the shield
+            // gets recursively despawned. get_entity() avoids panicking on a dead entity.
+            if let Ok(mut cmds) = commands.get_entity(entity) {
+                cmds.remove::<ShieldScalePunch>();
+            }
+        } else {
+            // sin(π * t) gives 0→1→0 curve: peaks at t=0.5, returns to 0 at t=1.0
+            let bulge = (std::f32::consts::PI * t).sin() * 0.5;
+            transform.scale = punch.original_scale * (1.0 + bulge);
+        }
+    }
+}
+
+/// Floats text upward and fades it out, then despawns the entity.
+fn floating_text_system(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut Transform, &mut TextColor, &mut FloatingText)>,
+    time: Res<Time>,
+) {
+    for (entity, mut transform, mut text_color, mut floating) in query.iter_mut() {
+        floating.0.tick(time.delta());
+
+        transform.translation.y += 50.0 * time.delta_secs();
+        let alpha = 1.0 - floating.0.fraction();
+        text_color.0 = Color::srgba(1.0, 1.0, 0.3, alpha);
+
+        if floating.0.is_finished() {
+            if let Ok(mut cmds) = commands.get_entity(entity) {
+                cmds.despawn();
+            }
         }
     }
 }

@@ -131,7 +131,9 @@ fn knockback_system(
             .lerp(knockback.target_position, t_eased);
 
         if knockback.timer.is_finished() {
-            commands.entity(entity).remove::<Knockback>();
+            if let Ok(mut cmds) = commands.get_entity(entity) {
+                cmds.remove::<Knockback>();
+            }
         }
     }
 }
