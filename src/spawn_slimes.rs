@@ -49,7 +49,7 @@ fn setup_slime_spawn_system(mut commands: Commands, save_data: Res<SaveData>) {
         enemy_slimes: SlimeAmounts {
             normal_slimes: 0,
             tanks: 1,
-            wizards: 2,
+            wizards: 0,
         },
     });
 
@@ -202,6 +202,7 @@ fn spawn_tank_slime(commands: &mut Commands, team: Team) -> Entity {
             knockback: 0.0,
             stun_chance: 0.1,
             stun_duration: 1.5,
+            ..default()
         },
         range: 65.0,
     }]));
@@ -232,35 +233,47 @@ fn spawn_wizard_slime(commands: &mut Commands, team: Team) -> Entity {
         Team::Enemy => -x_displacement,
     };
 
-    commands.entity(entity).insert(Health(5)).with_child((
-        AnimationType::FrozenSpearIdle,
-        IdleAnimation(AnimationType::FrozenSpearIdle),
-        Transform::from_xyz(shield_x, -10.0, 1.0).with_scale(Vec3::splat(4.0)),
-        //   Sprite {
-        //       flip_x: team == Team::Enemy,
-        //       ..default()
-        //   },
-        // ── Combat components — spear fights independently ──
-        // The spear gets its own target, its own attacks, and its own cooldown.
-        // It flows through the same combat pipeline as every other entity —
-        // no special-casing needed. This is the ECS way: same components,
-        // same systems, different behavior via different data.
-        team,                        // inherits parent's team so it targets enemies
-        PickTargetStrategy::Closest, // constantly re-evaluates to always hit the nearest enemy
-        Speed(25.0),                 // moves slowly toward its target
-        StaysNearParent(50.0),       // but can't drift more than 100 units from the wizard
-        KnownAttacks(vec![Attack {
-            animation: AnimationType::FrozenSpearAttack,
-            hit_frame: 5, // damage lands mid-animation
-            on_hit_effect: AttackEffect {
-                damage: 1,
-                knockback: 200.0,
-                ..Default::default()
-            },
-            range: 65.0,
-        }]),
-        TimeBetweenAttacks(2.0), // 2-second cooldown prevents spamming every frame
-    ));
+    let mage_cast_anim = match team {
+        Team::Player => AnimationType::MageCast,
+        Team::Enemy => AnimationType::EnemyMageCast,
+    };
+
+    commands
+        .entity(entity)
+        .insert((
+            Health(5),
+            KnownAttacks(vec![Attack {
+                animation: mage_cast_anim,
+                hit_frame: 0, // single frame — damage lands immediately
+                on_hit_effect: AttackEffect {
+                    damage: 1,
+                    aoe_distance: Some(100.0),
+                    ..Default::default()
+                },
+                range: 1000.0,
+            }]),
+        ))
+        .with_child((
+            AnimationType::FrozenSpearIdle,
+            IdleAnimation(AnimationType::FrozenSpearIdle),
+            Transform::from_xyz(shield_x, -10.0, 1.0).with_scale(Vec3::splat(4.0)),
+            // ── Combat components — spear fights independently ──
+            team,                        // inherits parent's team so it targets enemies
+            PickTargetStrategy::Closest, // constantly re-evaluates to always hit the nearest enemy
+            Speed(25.0),                 // moves slowly toward its target
+            StaysNearParent(50.0),       // but can't drift more than 100 units from the wizard
+            KnownAttacks(vec![Attack {
+                animation: AnimationType::FrozenSpearAttack,
+                hit_frame: 5, // damage lands mid-animation
+                on_hit_effect: AttackEffect {
+                    damage: 1,
+                    knockback: 200.0,
+                    ..Default::default()
+                },
+                range: 65.0,
+            }]),
+            TimeBetweenAttacks(2.0), // 2-second cooldown prevents spamming every frame
+        ));
 
     entity
 }

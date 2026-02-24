@@ -2,6 +2,7 @@ use std::time;
 
 use bevy::prelude::*;
 
+use crate::combat::ActiveAttack;
 use crate::health::{Dying, Health};
 use crate::setup_round::Inert;
 use crate::special_abilities::{Merging, PreMerging};
@@ -59,7 +60,8 @@ pub fn move_to_target_system(
             Without<PreMerging>,
             Without<Merging>,
             Without<Dying>,
-            Without<Knockback>, // Don't fight with knockback lerp
+            Without<Knockback>,     // Don't fight with knockback lerp
+            Without<ActiveAttack>,  // Freeze in place while attacking
         ),
     >,
     targets: Query<&GlobalTransform>,

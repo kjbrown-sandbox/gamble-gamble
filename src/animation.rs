@@ -52,6 +52,11 @@ pub enum AnimationType {
     // Frozen spear attack — non-looping attack animation for the wizard's weapon.
     // The spear attacks independently from the parent wizard slime.
     FrozenSpearAttack,
+    // Wizard mage cast — single-frame attack pose for the wizard slime.
+    MageCast,
+    EnemyMageCast,
+    // Ice trap spawn — one-shot VFX at the AoE impact point.
+    IceTrapSpawn,
 }
 
 fn default_animated_sprite() -> Sprite {
@@ -109,6 +114,15 @@ pub struct SpriteSheets {
     // Frozen spear attack — 320x32 sheet (10 frames of 32x32)
     pub frozen_spear_attack: Handle<Image>,
     pub frozen_spear_attack_layout: Handle<TextureAtlasLayout>,
+
+    // Mage cast — single frame 60x99 (wizard attack pose)
+    pub mage_cast: Handle<Image>,
+    pub enemy_mage_cast: Handle<Image>,
+    pub mage_cast_layout: Handle<TextureAtlasLayout>,
+
+    // Ice trap spawn — 416x32 sheet (13 frames of 32x32)
+    pub ice_trap_spawn: Handle<Image>,
+    pub ice_trap_spawn_layout: Handle<TextureAtlasLayout>,
 }
 
 impl AnimationState {
@@ -382,6 +396,36 @@ pub fn switch_animation_system(
                     false, // non-looping — plays once per attack
                 );
             }
+            AnimationType::MageCast => {
+                sprite.image = sprite_sheets.mage_cast.clone();
+                wip_texture_atlas.layout = sprite_sheets.mage_cast_layout.clone();
+                *anim_state = AnimationState::new(
+                    1.5,
+                    assets.get(&sprite_sheets.mage_cast_layout).unwrap().len(),
+                    false,
+                );
+            }
+            AnimationType::EnemyMageCast => {
+                sprite.image = sprite_sheets.enemy_mage_cast.clone();
+                wip_texture_atlas.layout = sprite_sheets.mage_cast_layout.clone();
+                *anim_state = AnimationState::new(
+                    1.5,
+                    assets.get(&sprite_sheets.mage_cast_layout).unwrap().len(),
+                    false,
+                );
+            }
+            AnimationType::IceTrapSpawn => {
+                sprite.image = sprite_sheets.ice_trap_spawn.clone();
+                wip_texture_atlas.layout = sprite_sheets.ice_trap_spawn_layout.clone();
+                *anim_state = AnimationState::new(
+                    0.06,
+                    assets
+                        .get(&sprite_sheets.ice_trap_spawn_layout)
+                        .unwrap()
+                        .len(),
+                    false,
+                );
+            }
         }
         sprite.texture_atlas = Some(wip_texture_atlas);
     }
@@ -513,6 +557,27 @@ pub fn load_sprite_sheets(
         frozen_spear_attack_layout: texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
             UVec2::new(32, 32),
             10,
+            1,
+            None,
+            None,
+        )),
+
+        // Mage cast — single frame 60x99
+        mage_cast: asset_server.load("sprites/slimes/Mage-Cast/mage_cast.png"),
+        enemy_mage_cast: asset_server.load("sprites/slimes/Mage-Cast-Red/mage_cast.png"),
+        mage_cast_layout: texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
+            UVec2::new(60, 99),
+            1,
+            1,
+            None,
+            None,
+        )),
+
+        // Ice trap spawn — 416x32 sheet = 13 frames of 32x32
+        ice_trap_spawn: asset_server.load("sprites/TinySpells_BigWander/IceTrap/IceTrap_Spawn_TinySpells_FrozenTome_BigWander.png"),
+        ice_trap_spawn_layout: texture_atlas_layouts.add(TextureAtlasLayout::from_grid(
+            UVec2::new(32, 32),
+            13,
             1,
             None,
             None,

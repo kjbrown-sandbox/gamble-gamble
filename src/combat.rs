@@ -6,6 +6,7 @@ use crate::{
     audio::GameAudio,
     health::{DamagedEvent, Dying, Health},
     movement::{Knockback, TargetEntity},
+    pick_target::Team,
     setup_round::{Inert, StunTimer},
     shaders_lite::Flash,
     special_abilities::Merging,
@@ -88,6 +89,9 @@ pub struct AttackEffect {
     pub stun_chance: f32,
     /// How long the stun lasts in seconds. Only matters if stun_chance > 0.
     pub stun_duration: f32,
+    /// If Some(dist), the attack splashes — damaging all enemies within `dist`
+    /// of the primary target. Secondary hits have aoe_distance = None to prevent recursion.
+    pub aoe_distance: Option<f32>,
 }
 
 /// Permanent config: how many seconds to wait between attacks.
@@ -154,6 +158,11 @@ pub struct StunnedEvent {
 /// and by ice_vfx_cleanup_system to self-despawn when the animation finishes.
 #[derive(Component)]
 pub struct IceImpactVfx;
+
+/// Marker for AoE ice trap VFX. Standalone entity (not a child) — spawned at
+/// world position because the target might die or move after the hit.
+#[derive(Component)]
+pub struct IceTrapVfx;
 
 /// Chance (0.0–1.0) that an incoming attack is completely blocked.
 /// When a block succeeds, the attack deals no damage, no knockback, no stun —
@@ -268,54 +277,52 @@ fn hit_frame_check_system(
 /// You access the event fields by dereferencing: trigger.attacker, trigger.target, etc.
 /// Additional parameters work just like regular system parameters (queries, commands, etc.).
 ///
-/// ParamSet is still needed here because we read the attacker's Transform (p0)
-/// and mutate the target's Health + Transform + AnimationState (p1). Both touch Transform,
-/// so Bevy won't allow two overlapping queries without ParamSet.
+/// ParamSet has three queries because they overlap on components:
+///   p0 — read attacker + target world positions (GlobalTransform)
+///   p1 — mutate target's Health/Transform/AnimationState
+///   p2 — scan all entities with Health for AoE splash (reads GlobalTransform + Team)
 ///
 /// Option<&BlockChance> in p1 lets us read BlockChance when it exists without
-/// excluding entities that don't have it. This is a common Bevy pattern for
-/// "check if this optional component is present" inside a query.
+/// excluding entities that don't have it.
 fn on_hit_observer(
     trigger: On<OnHitEvent>,
     mut params: ParamSet<(
-        Query<&GlobalTransform>, // p0: read attacker world position (GlobalTransform for children)
+        Query<&GlobalTransform>,
         Query<(
             &mut Health,
             &mut Transform,
             &mut AnimationState,
-            Option<&BlockChance>, // None for entities without a shield
-        )>, // p1: mutate target
+            Option<&BlockChance>,
+        )>,
+        Query<(Entity, &GlobalTransform, &Team), With<Health>>,
     )>,
     mut commands: Commands,
 ) {
-    // Read the attacker's world-space position first (using p0), then release it.
-    // GlobalTransform is needed because the attacker might be a child entity (like the spear),
-    // whose local Transform is relative to its parent. translation() gives world coords.
-    let Some(attacker_pos) = params
-        .p0()
-        .get(trigger.attacker)
-        .ok()
-        .map(|t| t.translation())
-    else {
-        return;
+    // ── Phase 1: read positions from p0 ──
+    // Scope the p0 borrow so it's released before we touch p1/p2.
+    let (attacker_pos, target_pos) = {
+        let p0 = params.p0();
+        let Some(attacker_pos) = p0.get(trigger.attacker).ok().map(|t| t.translation()) else {
+            return;
+        };
+        let Some(target_pos) = p0.get(trigger.target).ok().map(|t| t.translation()) else {
+            return;
+        };
+        (attacker_pos, target_pos)
     };
 
-    // Now use p1 to mutate the target's health, position, and animation state.
-    if let Ok((mut health, mut transform, mut anim_state, block_chance)) =
+    // ── Phase 2: apply primary hit via p1 ──
+    if let Ok((mut health, transform, mut anim_state, block_chance)) =
         params.p1().get_mut(trigger.target)
     {
-        // Check for block BEFORE applying any damage.
-        // If the target has a BlockChance component, roll against it.
-        // A successful block cancels the entire attack — no damage, no
-        // knockback, no stun. We trigger BlockedAttackEvent so the
-        // presentation observer can flash the shield and play a sound.
+        // Blocked attacks cancel everything — including AoE splash.
         if let Some(block_chance) = block_chance {
             let mut rng = rand::thread_rng();
             if rng.gen::<f32>() < block_chance.0 {
                 commands.trigger(BlockedAttackEvent {
                     defender: trigger.target,
                 });
-                return; // Attack fully cancelled — nothing else happens
+                return;
             }
         }
 
@@ -332,8 +339,6 @@ fn on_hit_observer(
             let diff = transform.translation - attacker_pos;
             if diff.length() > 0.01 {
                 let direction = diff.normalize();
-                // Calculate where the entity should end up after knockback.
-                // Only push on x/y — z is for draw order and shouldn't change.
                 let target_pos = transform.translation
                     + Vec3::new(
                         direction.x * trigger.effect.knockback,
@@ -348,22 +353,10 @@ fn on_hit_observer(
             }
         }
 
-        // Roll for stun — but only if the target survived the hit.
-        // Without this check, we'd queue commands to insert Inert/StunTimer
-        // on a target that's about to be despawned by the death system.
-        // Those deferred commands would run after the despawn and cause
-        // "Entity despawned" errors. This is a common ECS pitfall: commands
-        // are deferred (they don't execute immediately), so you need to make
-        // sure the entity will still exist when they finally run.
         if trigger.effect.stun_chance > 0.0 && health.0 > 0 {
             let mut rng = rand::thread_rng();
             if rng.gen::<f32>() < trigger.effect.stun_chance {
-                // Use get_entity() for safety — if the target somehow got
-                // despawned between the query and command execution, we skip
-                // gracefully instead of panicking with "Entity despawned."
                 if let Ok(mut target_commands) = commands.get_entity(trigger.target) {
-                    // Insert Inert to block movement, target picking, and attacking.
-                    // Insert StunTimer so the stun auto-expires after stun_duration seconds.
                     target_commands.insert((
                         Inert,
                         StunTimer(Timer::from_seconds(
@@ -371,24 +364,62 @@ fn on_hit_observer(
                             TimerMode::Once,
                         )),
                     ));
-
-                    // Cancel any in-progress attack on the target.
-                    // Without this, a stunned entity would finish its current attack
-                    // even though it's frozen.
                     target_commands.remove::<ActiveAttack>();
                 }
-
-                // Freeze the target's sprite by marking its animation as finished.
-                // The stun_timer_system will set this back to false when the stun ends.
                 anim_state.finished = true;
-
-                // Fire StunnedEvent so the VFX/audio observer can react.
-                // This is the Observer pattern again — we trigger the event here,
-                // and on_stunned_observer handles the visual/audio response.
                 commands.trigger(StunnedEvent {
                     entity: trigger.target,
                 });
             }
+        }
+    }
+
+    // ── Phase 3: AoE splash via p2 ──
+    // Only fires when the primary hit's effect has aoe_distance set.
+    // Secondary OnHitEvents have aoe_distance = None, so this block is
+    // skipped for them — preventing infinite recursion.
+    if let Some(aoe_dist) = trigger.effect.aoe_distance {
+        // Scope the p2 borrow — collect results into a Vec, then release p2
+        // before triggering events (which need &mut commands).
+        let splash_targets: Vec<Entity> = {
+            let p2 = params.p2();
+            let target_team = p2.get(trigger.target).ok().map(|(_, _, t)| *t);
+
+            if let Some(team) = target_team {
+                p2.iter()
+                    .filter(|(e, pos, t)| {
+                        *e != trigger.target
+                            && **t == team
+                            && pos.translation().distance(target_pos) <= aoe_dist
+                    })
+                    .map(|(e, _, _)| e)
+                    .collect()
+            } else {
+                Vec::new()
+            }
+        };
+
+        if !splash_targets.is_empty() {
+
+            // Clone the effect with aoe_distance stripped to prevent recursion
+            let mut splash_effect = trigger.effect.clone();
+            splash_effect.aoe_distance = None;
+
+            for splash_target in splash_targets {
+                commands.trigger(OnHitEvent {
+                    attacker: trigger.attacker,
+                    target: splash_target,
+                    effect: splash_effect.clone(),
+                });
+            }
+
+            // Spawn IceTrap VFX at the impact point (standalone, not a child)
+            commands.spawn((
+                IceTrapVfx,
+                AnimationType::IceTrapSpawn,
+                Transform::from_xyz(target_pos.x, target_pos.y, 2.0)
+                    .with_scale(Vec3::splat(3.0)),
+            ));
         }
     }
 }
@@ -538,18 +569,20 @@ fn on_block_attack_observer(
     }
 }
 
-/// Watches for ice impact VFX entities whose animation has finished and despawns them.
-/// This is the "self-destruct" mechanism: the VFX plays its one-shot animation,
-/// then this system notices `finished == true` and removes the entity.
-///
-/// This runs independently of the stun timer — the VFX might finish before or
-/// after the stun ends. If the stun ends first, stun_timer_system despawns it.
-/// If the animation ends first, this system despawns it. Either way it's cleaned up.
+/// Watches for ice VFX entities whose animation has finished and despawns them.
+/// Covers both IceImpactVfx (stun effect, child entity) and IceTrapVfx (AoE splash,
+/// standalone entity). Both use one-shot animations that set finished = true.
 fn ice_vfx_cleanup_system(
     mut commands: Commands,
-    query: Query<(Entity, &AnimationState), With<IceImpactVfx>>,
+    impact_query: Query<(Entity, &AnimationState), With<IceImpactVfx>>,
+    trap_query: Query<(Entity, &AnimationState), With<IceTrapVfx>>,
 ) {
-    for (entity, anim_state) in query.iter() {
+    for (entity, anim_state) in impact_query.iter() {
+        if anim_state.finished {
+            commands.entity(entity).despawn();
+        }
+    }
+    for (entity, anim_state) in trap_query.iter() {
         if anim_state.finished {
             commands.entity(entity).despawn();
         }
