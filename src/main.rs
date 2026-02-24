@@ -2,6 +2,8 @@ use bevy::prelude::*;
 // In Bevy 0.18, camera types moved to bevy::camera (the bevy_camera crate),
 // NOT bevy::render::camera. This is a common gotcha when reading older tutorials.
 use bevy::camera::ScalingMode;
+use bevy::image::{ImageSampler, TextureFormatPixelInfo};
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::window::{WindowResizeConstraints, WindowResolution};
 use rand::seq::IteratorRandom;
 use rand::Rng;
@@ -61,6 +63,7 @@ fn main() {
             width: 1200.0,
             height: 800.0,
         })
+        .insert_resource(ClearColor(Color::srgb(0.15, 0.15, 0.15)))
         // Bevy's add_plugins() only supports tuples of up to 15 elements.
         // When you exceed that, you nest them into sub-tuples. Each sub-tuple
         // counts as one element in the outer tuple. This is a Bevy limitation,
@@ -150,6 +153,8 @@ fn spawn_slimes(
     save_data: Res<SaveData>,
     enemy_armies: Res<EnemyArmies>,
     arena: Res<ArenaBounds>,
+    asset_server: Res<AssetServer>,
+    mut images: ResMut<Assets<Image>>,
 ) {
     //  let mut rng = rand::thread_rng();
 
@@ -204,6 +209,61 @@ fn spawn_slimes(
     //          }]),
     //      ));
     //  }
+
+    // Background image. z = -1 places it behind all game entities (which default to z = 0+).
+    // custom_size overrides the sprite dimensions so it fills the arena regardless of
+    // the image's native resolution. The image field holds the asset Handle<Image>.
+    commands.spawn((
+        render::Background,
+        Sprite {
+            image: asset_server.load("backgrounds/personal-stones.png"),
+            custom_size: Some(Vec2::new(arena.width, arena.height)),
+            color: Color::srgba(1.0, 1.0, 1.0, 0.05),
+            ..default()
+        },
+        Transform::from_xyz(0.0, 0.0, -10.0).with_scale(Vec3::splat(3.0)),
+    ));
+
+    // Vignette overlay: a programmatically-generated gradient texture that's
+    // dark/opaque at the top and bottom edges and transparent in the middle.
+    // This is created in code rather than loaded from a file — Bevy's Assets<Image>
+    // lets you add images you build yourself, not just ones from disk.
+    let vignette_height: u32 = 20;
+    let mut pixel_data = Vec::with_capacity((vignette_height * 4) as usize);
+    for y in 0..vignette_height {
+        let t = y as f32 / (vignette_height - 1) as f32;
+        // Squaring the distance from center makes the fade nonlinear:
+        // mostly transparent in the middle, ramping up sharply near edges.
+        let edge_dist = (2.0 * (t - 0.5)).powi(2);
+        let alpha = (edge_dist * 255.0) as u8;
+        pixel_data.extend_from_slice(&[0, 0, 0, alpha]);
+    }
+    let mut vignette_image = Image::new(
+        Extent3d {
+            width: 1,
+            height: vignette_height,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        pixel_data,
+        TextureFormat::Rgba8UnormSrgb,
+        default(),
+    );
+    // Nearest-neighbor would show visible banding on a 64-pixel gradient
+    // stretched to 800 pixels. Linear interpolation smooths between the
+    // 64 samples so the fade looks continuous.
+    vignette_image.sampler = ImageSampler::linear();
+    let vignette_handle = images.add(vignette_image);
+
+    commands.spawn((
+        render::Background,
+        Sprite {
+            image: vignette_handle,
+            custom_size: Some(Vec2::new(arena.width, arena.height)),
+            ..default()
+        },
+        Transform::from_xyz(0.0, 0.0, 9.0),
+    ));
 
     // Camera2d is a marker component that says "this is a 2D camera."
     // When spawned, Bevy's #[require] attribute automatically adds Camera,
