@@ -296,6 +296,7 @@ fn on_hit_observer(
         )>,
         Query<(Entity, &GlobalTransform, &Team), With<Health>>,
     )>,
+    audio: Res<GameAudio>,
     mut commands: Commands,
 ) {
     // ── Phase 1: read positions from p0 ──
@@ -414,11 +415,22 @@ fn on_hit_observer(
 
         // Spawn IceTrap VFX at the impact point regardless of whether
         // there were secondary targets — the AoE visual should always appear.
+        commands
+            .spawn((
+                IceTrapVfx,
+                AnimationType::IceTrapSpawn,
+                Transform::from_xyz(target_pos.x, target_pos.y, 2.0)
+                    .with_scale(Vec3::splat(3.0)),
+            ))
+            .with_child((
+                IceImpactVfx,
+                AnimationType::IceImpact,
+                Transform::from_xyz(0.0, 0.0, 1.0).with_scale(Vec3::splat(1.0)),
+            ));
+
         commands.spawn((
-            IceTrapVfx,
-            AnimationType::IceTrapSpawn,
-            Transform::from_xyz(target_pos.x, target_pos.y, 2.0)
-                .with_scale(Vec3::splat(3.0)),
+            AudioPlayer::new(audio.ice_trap.clone()),
+            PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.5)),
         ));
     }
 }

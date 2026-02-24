@@ -21,6 +21,8 @@ pub struct GameAudio {
     pub stun: Handle<AudioSource>,
     /// Sound that plays when a shield blocks an incoming attack.
     pub block: Handle<AudioSource>,
+    /// Sound that plays when an AoE ice trap spawns at the impact point.
+    pub ice_trap: Handle<AudioSource>,
 }
 
 pub fn setup_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -34,6 +36,8 @@ pub fn setup_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
     let stun_sound = asset_server.load("audio/Enemystunned.wav");
     let block_sound = asset_server.load("audio/Frustratedenemy.wav");
 
+    let ice_trap_sound = asset_server.load("audio/Select.wav");
+
     commands.insert_resource(GameAudio {
         slime_damage: damage_sound,
         slime_death: death_sound,
@@ -41,5 +45,6 @@ pub fn setup_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
         merge_complete: merge_complete_sound,
         stun: stun_sound,
         block: block_sound,
+        ice_trap: ice_trap_sound,
     });
 }
