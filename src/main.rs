@@ -134,7 +134,7 @@ fn main() {
 /// background. This is fine because text entities that reference the handle will
 /// automatically render once the asset is available.
 fn load_game_font(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let font = asset_server.load("typography/upheaval-tt-brk.upheaval-tt-brk.ttf");
+    let font = asset_server.load("typography/upheaval/upheaval-tt-brk.upheaval-tt-brk.ttf");
     commands.insert_resource(GameFont(font));
 }
 
