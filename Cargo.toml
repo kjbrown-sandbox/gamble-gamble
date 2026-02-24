@@ -9,7 +9,7 @@ edition = "2021"
 # Bevy requires explicit feature flags for audio formats.
 # "wav" enables WAV file support (not included by default in 0.18)
 # Other audio features: "vorbis" (OGG), "mp3", "flac"
-bevy = { version = "0.18.0", features = ["wav"] }
+bevy = { version = "0.18.0", features = ["wav", "dynamic_linking"] }
 rand = "0.8"
 
 # serde: Rust's standard serialization framework. The "derive" feature lets us
