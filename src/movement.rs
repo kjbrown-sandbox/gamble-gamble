@@ -11,12 +11,15 @@ pub struct MovementPlugin;
 
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
-        // .chain() makes these run in order: move → unsmush → clamp.
-        // out_of_bounds_system runs last so it gets the final word — no system
-        // can push an entity outside the arena after the clamp runs.
         app.add_systems(
             Update,
-            (move_to_target_system, unsmush_system, out_of_bounds_system).chain(),
+            (
+                knockback_system,
+                move_to_target_system,
+                unsmush_system,
+                out_of_bounds_system,
+            )
+                .chain(),
         );
     }
 }
@@ -32,16 +35,16 @@ pub struct Speed(pub f32);
 #[derive(Component, Copy, Clone)]
 pub struct StaysNearParent(pub f32);
 
+/// Temporary component that smoothly moves an entity from its current position
+/// to a target position over 1 second with an ease-out curve.
+#[derive(Component)]
+pub struct Knockback {
+    pub start_position: Vec3,
+    pub target_position: Vec3,
+    pub timer: Timer,
+}
+
 pub fn move_to_target_system(
-    // We used to need ParamSet here because both the mover and target queries
-    // accessed &Transform — one mutably, one immutably. Bevy can't prove they
-    // won't overlap, so it required ParamSet to enforce exclusive access.
-    //
-    // Now we read positions via GlobalTransform (immutable) and only write to
-    // Transform (mutable). Since these are different components, Bevy knows
-    // they can't conflict, and ParamSet is no longer needed. This also fixes
-    // child entities: GlobalTransform gives world-space position, so distance
-    // checks work correctly even for entities nested in a transform hierarchy.
     mut movers: Query<
         (
             Entity,
@@ -56,6 +59,7 @@ pub fn move_to_target_system(
             Without<PreMerging>,
             Without<Merging>,
             Without<Dying>,
+            Without<Knockback>, // Don't fight with knockback lerp
         ),
     >,
     targets: Query<&GlobalTransform>,
@@ -106,6 +110,30 @@ pub fn move_to_target_system(
     }
 }
 
+/// Smoothly moves knocked-back entities from start to target position over 1 second.
+fn knockback_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut query: Query<(Entity, &mut Transform, &mut Knockback), Without<Dying>>,
+) {
+    for (entity, mut transform, mut knockback) in query.iter_mut() {
+        knockback.timer.tick(time.delta());
+
+        // Quadratic ease-out: fast start, slow finish.
+        let t = knockback.timer.fraction();
+        let t_eased = 1.0 - (1.0 - t).powi(2);
+
+        // Lerp between start and target using the eased t value.
+        transform.translation = knockback
+            .start_position
+            .lerp(knockback.target_position, t_eased);
+
+        if knockback.timer.is_finished() {
+            commands.entity(entity).remove::<Knockback>();
+        }
+    }
+}
+
 /// Pushes entities apart when they're within 50 units of each other.
 /// The closer they are, the stronger the push. This prevents units
 /// from stacking on top of each other.
@@ -121,6 +149,7 @@ pub fn unsmush_system(
             With<Health>,
             Without<Merging>,
             Without<PreMerging>,
+            Without<Knockback>, // Don't push entities that are mid-knockback
         ),
     >,
     time: Res<Time>,

@@ -2,7 +2,7 @@
 
 All edits, suggestions, and responses must keep this in mind: This project is intended to help me, the programmer, understand Rust and game dev concepts. The primary goal is NOT to develop a game.
 
-I am an experienced developer but have no experience in Rust. I have also never made a game. I will benefit from verbose comments and explanations for why components and entities are created the way they are. I will also benefit from hearing about best practices and other considerations, even if we don't implement them.
+I am an experienced developer but have no experience in Rust. I have also never made a game. I will benefit from explanations for why components and entities are created the way they are in our chats. I will also benefit from hearing about best practices and other considerations, even if we don't implement them.
 
 I want to LEARN to do these things.
 
@@ -21,3 +21,7 @@ An old version of how it works is found in /old_src.
 # Common mistakes
 
 I often use OOP thinking instead of ECS. I have worked extensively with TypeScript (OOP) and with Godot, which builds things as scenes and nodes. For example, when building a slime, I think of making a new slime node and then attaching all related things to it. This is very different from the ECS mindset and I will likely mess this up frequently. This is my weakest point. Be quick to correct me when I slide back into OOP mindsets instead of ECS. I need frequent reminders.
+
+# Other notes
+
+Avoid excessive comments. Restrict yourself to one comment line per section unless it's the explanation for a system or plugin.

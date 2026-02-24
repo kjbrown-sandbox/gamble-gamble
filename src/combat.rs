@@ -5,7 +5,7 @@ use crate::{
     animation::{AnimationState, AnimationType, IdleAnimation},
     audio::GameAudio,
     health::{DamagedEvent, Dying, Health},
-    movement::TargetEntity,
+    movement::{Knockback, TargetEntity},
     setup_round::{Inert, StunTimer},
     shaders_lite::Flash,
     special_abilities::Merging,
@@ -327,20 +327,24 @@ fn on_hit_observer(
             });
         }
 
-        // Apply knockback: push target away from attacker.
-        // This is an instant displacement, not a velocity — the entity
-        // teleports a short distance. For smoother knockback, you'd add
-        // a Velocity component and let a physics system handle it over time.
+        // Apply knockback: insert a Knockback component
         if trigger.effect.knockback > 0.0 {
             let diff = transform.translation - attacker_pos;
             if diff.length() > 0.01 {
                 let direction = diff.normalize();
-                // Only push on x/y, not z (z is for draw order)
-                transform.translation += Vec3::new(
-                    direction.x * trigger.effect.knockback,
-                    direction.y * trigger.effect.knockback,
-                    0.0,
-                );
+                // Calculate where the entity should end up after knockback.
+                // Only push on x/y — z is for draw order and shouldn't change.
+                let target_pos = transform.translation
+                    + Vec3::new(
+                        direction.x * trigger.effect.knockback,
+                        direction.y * trigger.effect.knockback,
+                        0.0,
+                    );
+                commands.entity(trigger.target).insert(Knockback {
+                    start_position: transform.translation,
+                    target_position: target_pos,
+                    timer: Timer::from_seconds(1.0, TimerMode::Once),
+                });
             }
         }
 
@@ -429,8 +433,10 @@ fn attack_cleanup_system(
 
             if let Some(TimeBetweenAttacks(duration)) = time_between_attacks {
                 if *duration > 0.0 {
-                    entity_commands
-                        .insert(AttackCooldown(Timer::from_seconds(*duration, TimerMode::Once)));
+                    entity_commands.insert(AttackCooldown(Timer::from_seconds(
+                        *duration,
+                        TimerMode::Once,
+                    )));
                 }
             }
 
