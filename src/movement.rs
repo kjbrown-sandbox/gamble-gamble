@@ -5,13 +5,19 @@ use bevy::prelude::*;
 use crate::health::Health;
 use crate::setup_round::Inert;
 use crate::special_abilities::{Merging, PreMerging};
+use crate::ArenaBounds;
 
 pub struct MovementPlugin;
 
 impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
-        // unsmush runs after move_to_target so it gets the "last word" each frame
-        app.add_systems(Update, (move_to_target_system, unsmush_system).chain());
+        // .chain() makes these run in order: move → unsmush → clamp.
+        // out_of_bounds_system runs last so it gets the final word — no system
+        // can push an entity outside the arena after the clamp runs.
+        app.add_systems(
+            Update,
+            (move_to_target_system, unsmush_system, out_of_bounds_system).chain(),
+        );
     }
 }
 
@@ -146,5 +152,26 @@ pub fn unsmush_system(
         if let Ok((_, mut transform)) = query.get_mut(entity) {
             transform.translation += force;
         }
+    }
+}
+
+/// Clamps top-level sprite entities to stay inside the arena.
+///
+/// Without<ChildOf> filters to root entities only — child sprites (like a
+/// weapon attached to a character) are positioned relative to their parent,
+/// so clamping them directly would fight with the parent's transform.
+///
+/// .clamp() is Rust's built-in method on f32: it returns the value pinned
+/// between a min and max. Cleaner than chaining .min().max().
+pub fn out_of_bounds_system(
+    mut query: Query<&mut Transform, (With<Sprite>, Without<ChildOf>)>,
+    arena: Res<ArenaBounds>,
+) {
+    let half_w = arena.half_width();
+    let half_h = arena.half_height();
+
+    for mut transform in &mut query {
+        transform.translation.x = transform.translation.x.clamp(-half_w, half_w);
+        transform.translation.y = transform.translation.y.clamp(-half_h, half_h);
     }
 }
