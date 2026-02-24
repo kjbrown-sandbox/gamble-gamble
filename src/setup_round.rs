@@ -1,6 +1,10 @@
 use bevy::prelude::*;
 
-use crate::{animation::AnimationState, combat::IceImpactVfx};
+use crate::{
+    animation::AnimationState,
+    combat::{FloatingText, IceImpactVfx},
+    GameFont,
+};
 
 pub struct SetupRoundPlugin;
 
@@ -11,6 +15,7 @@ impl Plugin for SetupRoundPlugin {
             (
                 pre_game_timer_system.run_if(resource_exists::<PreGameTimer>),
                 stun_timer_system,
+                on_add_stun_system,
             ),
         );
     }
@@ -90,5 +95,30 @@ fn stun_timer_system(
                 }
             }
         }
+    }
+}
+
+/// Spawns floating "STUNNED!" text when any entity first receives a StunTimer.
+/// Added<StunTimer> fires once on the frame the component is inserted, covering
+/// all stun sources (ice blast, wall slam, etc.) without each source needing
+/// to spawn the text itself.
+fn on_add_stun_system(
+    query: Query<&GlobalTransform, Added<StunTimer>>,
+    game_font: Res<GameFont>,
+    mut commands: Commands,
+) {
+    for global_transform in &query {
+        let pos = global_transform.translation();
+        commands.spawn((
+            FloatingText(Timer::from_seconds(0.8, TimerMode::Once)),
+            Text2d::new("STUNNED!"),
+            TextFont {
+                font: game_font.0.clone(),
+                font_size: 18.0,
+                ..default()
+            },
+            TextColor(Color::WHITE),
+            Transform::from_xyz(pos.x, pos.y + 20.0, 10.0),
+        ));
     }
 }

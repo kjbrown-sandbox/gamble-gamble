@@ -250,7 +250,7 @@ fn spawn_wizard_slime(commands: &mut Commands, team: Team) -> Entity {
                     aoe_distance: Some(100.0),
                     ..Default::default()
                 },
-                range: 1000.0,
+                range: 500.0,
             }]),
         ))
         .with_child((
