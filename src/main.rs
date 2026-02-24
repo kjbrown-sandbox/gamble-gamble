@@ -27,6 +27,20 @@ pub struct ArenaBounds {
     pub height: f32,
 }
 
+/// Holds a Handle to the game's font, loaded once at startup.
+///
+/// In Bevy, assets (images, fonts, audio) are loaded asynchronously by the
+/// AssetServer and referenced via Handle<T>. A Handle is like a pointer to
+/// the loaded asset — lightweight to clone and pass around.
+///
+/// We wrap it in a Resource so any system that spawns text can grab
+/// Res<GameFont> and use game_font.0.clone() in TextFont's `font` field.
+/// Without this, each system would need to call asset_server.load() itself.
+/// That would still work (Bevy deduplicates loads of the same path), but a
+/// resource makes the dependency explicit and avoids repeating the path string.
+#[derive(Resource)]
+pub struct GameFont(pub Handle<Font>);
+
 impl ArenaBounds {
     /// Half-extents for bounds checking. Since the camera is centered at the
     /// origin, an 1200-wide arena spans from -600 to +600.
@@ -107,9 +121,21 @@ fn main() {
         //   - SpriteSheets (from animation::load_sprite_sheets)
         //   - SaveData (from save_load's startup system)
         //   - EnemyArmies (from armies plugin, via init_resource — available immediately)
+        .add_systems(Startup, load_game_font)
         .add_systems(Startup, spawn_slimes.after(animation::load_sprite_sheets))
         .add_systems(Update, kill_random_on_spacebar)
         .run();
+}
+
+/// Loads the game font and stores it as a resource for other systems to use.
+///
+/// asset_server.load() starts an async load and immediately returns a Handle.
+/// The font isn't ready yet at this point — Bevy will finish loading it in the
+/// background. This is fine because text entities that reference the handle will
+/// automatically render once the asset is available.
+fn load_game_font(mut commands: Commands, asset_server: Res<AssetServer>) {
+    let font = asset_server.load("typography/upheaval-tt-brk.upheaval-tt-brk.ttf");
+    commands.insert_resource(GameFont(font));
 }
 
 /// Spawns both armies using data from our resources instead of hardcoded values.

@@ -1,6 +1,7 @@
 use bevy::{audio::Volume, prelude::*};
 use rand::Rng;
 
+use crate::GameFont;
 use crate::{
     animation::{AnimationState, AnimationType, IdleAnimation, SpriteSheets, VictoryAnimation},
     audio::GameAudio,
@@ -201,6 +202,7 @@ fn on_add_pre_merge_system(
     mut query: Query<(Entity, &IdleAnimation, &mut Sprite, &mut AnimationState), Added<PreMerging>>,
     sprite_sheets: Res<SpriteSheets>,
     audio: Res<GameAudio>,
+    game_font: Res<GameFont>,
 ) {
     for (entity, idle_animation, mut sprite, mut anim_state) in &mut query {
         commands.spawn((
@@ -251,6 +253,7 @@ fn on_add_pre_merge_system(
             parent.spawn((
                 Text2d::new("!"),
                 TextFont {
+                    font: game_font.0.clone(),
                     font_size: 28.0,
                     ..default()
                 },

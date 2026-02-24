@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::animation::{AnimationType, VictoryAnimation};
 use crate::pick_target::Team;
 use crate::setup_round::PreGameTimer;
+use crate::GameFont;
 
 pub struct EndRoundPlugin;
 
@@ -32,6 +33,7 @@ fn check_round_end_system(
     // switch them to their celebration animation when the round ends.
     // We query mutably because we need to change their current AnimationType.
     mut survivors: Query<(&mut AnimationType, &VictoryAnimation, &Team)>,
+    game_font: Res<GameFont>,
 ) {
     let mut has_player = false;
     let mut has_enemy = false;
@@ -94,6 +96,7 @@ fn check_round_end_system(
             parent.spawn((
                 Text::new(message),
                 TextFont {
+                    font: game_font.0.clone(),
                     font_size: 120.0,
                     ..default()
                 },
