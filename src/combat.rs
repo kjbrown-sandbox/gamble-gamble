@@ -400,8 +400,6 @@ fn on_hit_observer(
         };
 
         if !splash_targets.is_empty() {
-
-            // Clone the effect with aoe_distance stripped to prevent recursion
             let mut splash_effect = trigger.effect.clone();
             splash_effect.aoe_distance = None;
 
@@ -412,15 +410,16 @@ fn on_hit_observer(
                     effect: splash_effect.clone(),
                 });
             }
-
-            // Spawn IceTrap VFX at the impact point (standalone, not a child)
-            commands.spawn((
-                IceTrapVfx,
-                AnimationType::IceTrapSpawn,
-                Transform::from_xyz(target_pos.x, target_pos.y, 2.0)
-                    .with_scale(Vec3::splat(3.0)),
-            ));
         }
+
+        // Spawn IceTrap VFX at the impact point regardless of whether
+        // there were secondary targets — the AoE visual should always appear.
+        commands.spawn((
+            IceTrapVfx,
+            AnimationType::IceTrapSpawn,
+            Transform::from_xyz(target_pos.x, target_pos.y, 2.0)
+                .with_scale(Vec3::splat(3.0)),
+        ));
     }
 }
 
