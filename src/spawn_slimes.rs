@@ -47,9 +47,9 @@ fn setup_slime_spawn_system(mut commands: Commands, save_data: Res<SaveData>) {
             wizards: save_data.wizards,
         },
         enemy_slimes: SlimeAmounts {
-            normal_slimes: 0,
-            tanks: 4,
-            wizards: 0,
+            normal_slimes: 1,
+            tanks: 1,
+            wizards: 1,
         },
     });
 

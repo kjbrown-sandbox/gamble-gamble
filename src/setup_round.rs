@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::{
     animation::AnimationState,
     combat::{FloatingText, IceImpactVfx},
+    utils::DespawnAfter,
     GameFont,
 };
 
@@ -31,8 +32,20 @@ pub struct Inert;
 #[derive(Resource)]
 pub struct PreGameTimer(Timer);
 
-fn start_pre_game_timer(mut commands: Commands) {
+fn start_pre_game_timer(mut commands: Commands, game_font: Res<GameFont>) {
     commands.insert_resource(PreGameTimer(Timer::from_seconds(2.0, TimerMode::Once)));
+
+    commands.spawn((
+        Text2d::new("READY"),
+        TextFont {
+            font: game_font.0.clone(),
+            font_size: 100.0,
+            ..default()
+        },
+        TextColor(Color::WHITE),
+        Transform::from_xyz(0.0, 25.0, 1.0),
+        DespawnAfter(Timer::from_seconds(2.0, TimerMode::Once)),
+    ));
 }
 
 fn pre_game_timer_system(
@@ -40,6 +53,7 @@ fn pre_game_timer_system(
     time: Res<Time>,
     mut timer: ResMut<PreGameTimer>,
     inert_entities: Query<Entity, With<Inert>>,
+    game_font: Res<GameFont>,
 ) {
     timer.0.tick(time.delta());
 
@@ -51,6 +65,18 @@ fn pre_game_timer_system(
 
         // Timer's job is done — remove the resource so this system stops running
         commands.remove_resource::<PreGameTimer>();
+
+        commands.spawn((
+            Text2d::new("GO!"),
+            TextFont {
+                font: game_font.0.clone(),
+                font_size: 100.0,
+                ..default()
+            },
+            TextColor(Color::WHITE),
+            Transform::from_xyz(0.0, 25.0, 1.0),
+            DespawnAfter(Timer::from_seconds(0.6, TimerMode::Once)),
+        ));
     }
 }
 

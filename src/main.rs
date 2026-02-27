@@ -16,30 +16,12 @@ use crate::movement::Speed;
 use crate::pick_target::{PickTargetStrategy, Team};
 use crate::save_load::SaveData;
 
-/// Defines the playable area in world units. The camera shows this region
-/// (centered at the origin), and systems like out_of_bounds_system use it
-/// to clamp entity positions.
-///
-/// This is a Resource — Bevy's term for singleton data that lives in the ECS
-/// world but isn't attached to any specific entity. Any system can request it
-/// via Res<ArenaBounds> (immutable) or ResMut<ArenaBounds> (mutable).
 #[derive(Resource)]
 pub struct ArenaBounds {
     pub width: f32,
     pub height: f32,
 }
 
-/// Holds a Handle to the game's font, loaded once at startup.
-///
-/// In Bevy, assets (images, fonts, audio) are loaded asynchronously by the
-/// AssetServer and referenced via Handle<T>. A Handle is like a pointer to
-/// the loaded asset — lightweight to clone and pass around.
-///
-/// We wrap it in a Resource so any system that spawns text can grab
-/// Res<GameFont> and use game_font.0.clone() in TextFont's `font` field.
-/// Without this, each system would need to call asset_server.load() itself.
-/// That would still work (Bevy deduplicates loads of the same path), but a
-/// resource makes the dependency explicit and avoids repeating the path string.
 #[derive(Resource)]
 pub struct GameFont(pub Handle<Font>);
 
@@ -57,85 +39,78 @@ impl ArenaBounds {
 fn main() {
     let mut app = App::new();
 
-    // By default, Bevy panics when a deferred command targets a despawned entity.
-    // `warn` downgrades that to a log warning instead. This is fine for our game —
-    // the occasional stale command (e.g. removing a component from an entity that
-    // was cascade-despawned) is harmless and not worth crashing over.
     app.set_error_handler(bevy::ecs::error::warn);
 
-    app
-        // insert_resource() adds a Resource to the ECS world. It's available
-        // immediately to any system that requests Res<ArenaBounds>.
-        // We insert this before plugins so it's ready for any startup system.
-        .insert_resource(ArenaBounds {
-            width: 1200.0,
-            height: 800.0,
-        })
-        .insert_resource(ClearColor(Color::srgb(0.15, 0.15, 0.15)))
-        // Bevy's add_plugins() only supports tuples of up to 15 elements.
-        // When you exceed that, you nest them into sub-tuples. Each sub-tuple
-        // counts as one element in the outer tuple. This is a Bevy limitation,
-        // not a Rust one — Bevy uses macros to implement the Plugins trait for
-        // tuples up to a certain size.
-        .add_plugins((
-            // default_nearest() switches every image to nearest-neighbor
-            // filtering instead of bilinear. Without this, pixel art looks
-            // blurry when scaled up because bilinear interpolation blends
-            // neighboring pixels together. Nearest-neighbor just picks the
-            // closest texel, preserving hard pixel edges.
-            // We chain multiple .set() calls on DefaultPlugins to override
-            // individual sub-plugins. Each .set() replaces one plugin's config
-            // while leaving the rest at their defaults.
-            DefaultPlugins
-                .set(ImagePlugin::default_nearest())
-                .set(WindowPlugin {
-                    primary_window: Some(Window {
-                        // Sets the initial window size to 1200x800 pixels.
-                        // This matches our "arena" — the world space the camera
-                        // will show. Having the window match the camera's fixed
-                        // projection means 1 world unit = 1 pixel at default zoom.
-                        // WindowResolution::new() takes u32 (physical pixels),
-                        // not f32. This is the actual pixel count the OS allocates.
-                        resolution: WindowResolution::new(1200, 800),
-                        // Prevent the user from shrinking the window below the
-                        // arena size. Without this, resizing smaller would either
-                        // clip content or leave black bars depending on scaling.
-                        resize_constraints: WindowResizeConstraints {
-                            min_width: 1200.0,
-                            min_height: 800.0,
-                            ..default()
-                        },
-                        title: "Never Tell Me the Odds".into(),
+    app.insert_resource(ArenaBounds {
+        width: 1200.0,
+        height: 800.0,
+    })
+    .insert_resource(ClearColor(Color::srgb(0.15, 0.15, 0.15)))
+    // Bevy's add_plugins() only supports tuples of up to 15 elements.
+    // When you exceed that, you nest them into sub-tuples. Each sub-tuple
+    // counts as one element in the outer tuple. This is a Bevy limitation,
+    // not a Rust one — Bevy uses macros to implement the Plugins trait for
+    // tuples up to a certain size.
+    .add_plugins((
+        // default_nearest() switches every image to nearest-neighbor
+        // filtering instead of bilinear. Without this, pixel art looks
+        // blurry when scaled up because bilinear interpolation blends
+        // neighboring pixels together. Nearest-neighbor just picks the
+        // closest texel, preserving hard pixel edges.
+        // We chain multiple .set() calls on DefaultPlugins to override
+        // individual sub-plugins. Each .set() replaces one plugin's config
+        // while leaving the rest at their defaults.
+        DefaultPlugins
+            .set(ImagePlugin::default_nearest())
+            .set(WindowPlugin {
+                primary_window: Some(Window {
+                    // Sets the initial window size to 1200x800 pixels.
+                    // This matches our "arena" — the world space the camera
+                    // will show. Having the window match the camera's fixed
+                    // projection means 1 world unit = 1 pixel at default zoom.
+                    // WindowResolution::new() takes u32 (physical pixels),
+                    // not f32. This is the actual pixel count the OS allocates.
+                    resolution: WindowResolution::new(1200, 800),
+                    // Prevent the user from shrinking the window below the
+                    // arena size. Without this, resizing smaller would either
+                    // clip content or leave black bars depending on scaling.
+                    resize_constraints: WindowResizeConstraints {
+                        min_width: 1200.0,
+                        min_height: 800.0,
                         ..default()
-                    }),
+                    },
+                    title: "Never Tell Me the Odds".into(),
                     ..default()
                 }),
-            save_load::SaveLoadPlugin,
-            audio::AudioPlugin,
-            animation::AnimationPlugin,
-            render::RenderPlugin,
-            armies::ArmiesPlugin,
-            movement::MovementPlugin,
-            pick_target::PickTargetPlugin,
-        ))
-        .add_plugins((
-            health::HealthPlugin,
-            combat::CombatPlugin,
-            end_round::EndRoundPlugin,
-            setup_round::SetupRoundPlugin,
-            spawn_slimes::SpawnSlimesPlugin,
-            special_abilities::SpecialAbilitiesPlugin,
-            shaders_lite::ShadersLitePlugin,
-            sprite_modifications::SpriteModificationsPlugin,
-        ))
-        // spawn_slimes needs three resources to exist first:
-        //   - SpriteSheets (from animation::load_sprite_sheets)
-        //   - SaveData (from save_load's startup system)
-        //   - EnemyArmies (from armies plugin, via init_resource — available immediately)
-        .add_systems(Startup, load_game_font)
-        .add_systems(Startup, spawn_slimes.after(animation::load_sprite_sheets))
-        .add_systems(Update, kill_random_on_spacebar)
-        .run();
+                ..default()
+            }),
+        save_load::SaveLoadPlugin,
+        audio::AudioPlugin,
+        animation::AnimationPlugin,
+        render::RenderPlugin,
+        armies::ArmiesPlugin,
+        movement::MovementPlugin,
+        pick_target::PickTargetPlugin,
+        utils::UtilsPlugin,
+    ))
+    .add_plugins((
+        health::HealthPlugin,
+        combat::CombatPlugin,
+        end_round::EndRoundPlugin,
+        setup_round::SetupRoundPlugin,
+        spawn_slimes::SpawnSlimesPlugin,
+        special_abilities::SpecialAbilitiesPlugin,
+        shaders_lite::ShadersLitePlugin,
+        sprite_modifications::SpriteModificationsPlugin,
+    ))
+    // spawn_slimes needs three resources to exist first:
+    //   - SpriteSheets (from animation::load_sprite_sheets)
+    //   - SaveData (from save_load's startup system)
+    //   - EnemyArmies (from armies plugin, via init_resource — available immediately)
+    .add_systems(PreStartup, load_game_font)
+    .add_systems(Startup, spawn_slimes.after(animation::load_sprite_sheets))
+    .add_systems(Update, kill_random_on_spacebar)
+    .run();
 }
 
 /// Loads the game font and stores it as a resource for other systems to use.
@@ -144,7 +119,7 @@ fn main() {
 /// The font isn't ready yet at this point — Bevy will finish loading it in the
 /// background. This is fine because text entities that reference the handle will
 /// automatically render once the asset is available.
-fn load_game_font(mut commands: Commands, asset_server: Res<AssetServer>) {
+pub fn load_game_font(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font = asset_server.load("typography/upheaval/upheaval-tt-brk.upheaval-tt-brk.ttf");
     commands.insert_resource(GameFont(font));
 }
@@ -332,3 +307,4 @@ mod shaders_lite;
 mod spawn_slimes;
 mod special_abilities;
 mod sprite_modifications;
+mod utils;
