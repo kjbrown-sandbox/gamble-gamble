@@ -34,7 +34,7 @@ pub struct Inert;
 pub struct PreGameTimer(Timer);
 
 fn start_pre_game_timer(mut commands: Commands, game_font: Res<GameFont>, audio: Res<GameAudio>) {
-    commands.insert_resource(PreGameTimer(Timer::from_seconds(3.0, TimerMode::Once)));
+    commands.insert_resource(PreGameTimer(Timer::from_seconds(3.2, TimerMode::Once)));
 
     commands.spawn((
         Text2d::new("READY"),
@@ -45,7 +45,7 @@ fn start_pre_game_timer(mut commands: Commands, game_font: Res<GameFont>, audio:
         },
         TextColor(Color::WHITE),
         Transform::from_xyz(0.0, 25.0, 1.0),
-        DespawnAfter(Timer::from_seconds(3.0, TimerMode::Once)),
+        DespawnAfter(Timer::from_seconds(3.2, TimerMode::Once)),
     ));
 
     // commands.spawn((AudioPlayer::new(audio.ready.clone()),));
