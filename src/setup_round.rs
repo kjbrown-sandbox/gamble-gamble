@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     animation::AnimationState,
+    audio::GameAudio,
     combat::{FloatingText, IceImpactVfx},
     utils::DespawnAfter,
     GameFont,
@@ -32,8 +33,8 @@ pub struct Inert;
 #[derive(Resource)]
 pub struct PreGameTimer(Timer);
 
-fn start_pre_game_timer(mut commands: Commands, game_font: Res<GameFont>) {
-    commands.insert_resource(PreGameTimer(Timer::from_seconds(2.0, TimerMode::Once)));
+fn start_pre_game_timer(mut commands: Commands, game_font: Res<GameFont>, audio: Res<GameAudio>) {
+    commands.insert_resource(PreGameTimer(Timer::from_seconds(3.0, TimerMode::Once)));
 
     commands.spawn((
         Text2d::new("READY"),
@@ -44,8 +45,10 @@ fn start_pre_game_timer(mut commands: Commands, game_font: Res<GameFont>) {
         },
         TextColor(Color::WHITE),
         Transform::from_xyz(0.0, 25.0, 1.0),
-        DespawnAfter(Timer::from_seconds(2.0, TimerMode::Once)),
+        DespawnAfter(Timer::from_seconds(3.0, TimerMode::Once)),
     ));
+
+    // commands.spawn((AudioPlayer::new(audio.ready.clone()),));
 }
 
 fn pre_game_timer_system(
@@ -54,6 +57,7 @@ fn pre_game_timer_system(
     mut timer: ResMut<PreGameTimer>,
     inert_entities: Query<Entity, With<Inert>>,
     game_font: Res<GameFont>,
+    audio: Res<GameAudio>,
 ) {
     timer.0.tick(time.delta());
 
@@ -77,6 +81,8 @@ fn pre_game_timer_system(
             Transform::from_xyz(0.0, 25.0, 1.0),
             DespawnAfter(Timer::from_seconds(0.6, TimerMode::Once)),
         ));
+
+        commands.spawn((AudioPlayer::new(audio.go.clone()),));
     }
 }
 
