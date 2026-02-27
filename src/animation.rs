@@ -431,6 +431,7 @@ pub fn switch_animation_system(
     }
 }
 
+// So, we actually got the number wrong on the frames, but I prefer the speediness of it, so we can keep the jank
 pub fn load_sprite_sheets(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
