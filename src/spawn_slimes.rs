@@ -17,15 +17,7 @@ pub struct SpawnSlimesPlugin;
 
 impl Plugin for SpawnSlimesPlugin {
     fn build(&self, app: &mut App) {
-        // Registered on both Startup and OnEnter(Combat) because Bevy 0.18
-        // fires the initial OnEnter BEFORE PreStartup — so SaveData isn't
-        // available yet. Startup handles the first launch; OnEnter (with a
-        // resource guard) handles re-entry from Home.
-        app.add_systems(Startup, setup_slime_spawn_system)
-            .add_systems(
-                OnEnter(GameState::Combat),
-                setup_slime_spawn_system.run_if(resource_exists::<SaveData>),
-            )
+        app.add_systems(OnEnter(GameState::Combat), setup_slime_spawn_system)
             .add_systems(
                 Update,
                 spawn_slimes_system

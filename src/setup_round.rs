@@ -12,15 +12,7 @@ pub struct SetupRoundPlugin;
 
 impl Plugin for SetupRoundPlugin {
     fn build(&self, app: &mut App) {
-        // Registered on both Startup and OnEnter(Combat) because Bevy 0.18
-        // fires the initial OnEnter BEFORE PreStartup — so resources like
-        // GameFont aren't available yet. Startup handles the first launch;
-        // OnEnter (with a resource guard) handles re-entry from Home.
-        app.add_systems(Startup, start_pre_game_timer)
-            .add_systems(
-                OnEnter(GameState::Combat),
-                start_pre_game_timer.run_if(resource_exists::<GameFont>),
-            )
+        app.add_systems(OnEnter(GameState::Combat), start_pre_game_timer)
             .add_systems(
             Update,
             (

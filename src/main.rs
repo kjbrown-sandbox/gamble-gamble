@@ -9,8 +9,9 @@ use crate::health::Health;
 
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum GameState {
-    Home,
     #[default]
+    InitialLoading,
+    Home,
     Combat,
 }
 
@@ -108,7 +109,7 @@ fn main() {
     // for tracking state changes, running OnEnter/OnExit, or evaluating in_state().
     .init_state::<GameState>()
     .add_systems(PreStartup, load_game_font)
-    .add_systems(Startup, spawn_camera)
+    .add_systems(Startup, (spawn_camera, leave_initial_loading))
     .add_systems(OnEnter(GameState::Combat), setup_combat_arena)
     .add_systems(OnExit(GameState::Combat), cleanup_combat_resources)
     .add_systems(
@@ -127,6 +128,13 @@ fn main() {
 pub fn load_game_font(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font = asset_server.load("typography/upheaval/upheaval-tt-brk.upheaval-tt-brk.ttf");
     commands.insert_resource(GameFont(font));
+}
+
+/// Transitions out of InitialLoading into Combat. By running at Startup (which
+/// fires after PreStartup), all resources like GameFont, SaveData, and GameAudio
+/// are guaranteed to exist before any OnEnter(Combat) systems run.
+fn leave_initial_loading(mut next_state: ResMut<NextState<GameState>>) {
+    next_state.set(GameState::Combat);
 }
 
 /// Spawns the camera. This runs once at Startup and persists across all states.
