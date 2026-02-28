@@ -442,6 +442,7 @@ fn execute_merge_system(
         };
 
         commands.spawn((
+            DespawnOnExit(GameState::Combat),
             big_idle,
             IdleAnimation(big_idle),
             VictoryAnimation(big_victory),
