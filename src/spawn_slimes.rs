@@ -1,4 +1,4 @@
-use bevy::{prelude::*, state::commands};
+use bevy::prelude::*;
 use rand::Rng;
 
 use crate::{
@@ -17,7 +17,15 @@ pub struct SpawnSlimesPlugin;
 
 impl Plugin for SpawnSlimesPlugin {
     fn build(&self, app: &mut App) {
+        // Registered on both Startup and OnEnter(Combat) because Bevy 0.18
+        // fires the initial OnEnter BEFORE PreStartup — so SaveData isn't
+        // available yet. Startup handles the first launch; OnEnter (with a
+        // resource guard) handles re-entry from Home.
         app.add_systems(Startup, setup_slime_spawn_system)
+            .add_systems(
+                OnEnter(GameState::Combat),
+                setup_slime_spawn_system.run_if(resource_exists::<SaveData>),
+            )
             .add_systems(
                 Update,
                 spawn_slimes_system
@@ -27,7 +35,7 @@ impl Plugin for SpawnSlimesPlugin {
     }
 }
 
-struct SlimeAmounts {
+pub(crate) struct SlimeAmounts {
     normal_slimes: u32,
     tanks: u32,
     wizards: u32,
@@ -144,6 +152,7 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team) -> Entity {
 
     commands
         .spawn((
+            DespawnOnExit(GameState::Combat),
             idle_anim,
             IdleAnimation(idle_anim),
             VictoryAnimation(victory_anim),
@@ -151,7 +160,7 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team) -> Entity {
             team,
             PickTargetStrategy::Close,
             Sprite {
-                flip_x: team == Team::Enemy, // Flip enemy slimes to face left
+                flip_x: team == Team::Enemy,
                 ..default()
             },
             DeathAnimation(death_anim),

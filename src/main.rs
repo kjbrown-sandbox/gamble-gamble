@@ -1,20 +1,11 @@
-use bevy::prelude::*;
-// In Bevy 0.18, camera types moved to bevy::camera (the bevy_camera crate),
-// NOT bevy::render::camera. This is a common gotcha when reading older tutorials.
 use bevy::camera::ScalingMode;
-use bevy::image::{ImageSampler, TextureFormatPixelInfo};
+use bevy::image::ImageSampler;
+use bevy::prelude::*;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::window::{WindowResizeConstraints, WindowResolution};
 use rand::seq::IteratorRandom;
-use rand::Rng;
 
-use crate::animation::AnimationType;
-use crate::armies::EnemyArmies;
-use crate::combat::{Attack, AttackEffect, KnownAttacks};
-use crate::health::{DeathAnimation, Health};
-use crate::movement::Speed;
-use crate::pick_target::{PickTargetStrategy, Team};
-use crate::save_load::SaveData;
+use crate::health::Health;
 
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum GameState {
@@ -109,6 +100,7 @@ fn main() {
         special_abilities::SpecialAbilitiesPlugin,
         shaders_lite::ShadersLitePlugin,
         sprite_modifications::SpriteModificationsPlugin,
+        home::HomePlugin,
     ))
     // init_state must come AFTER add_plugins(DefaultPlugins) because DefaultPlugins
     // includes StatesPlugin, which sets up the StateTransition schedule that
@@ -116,7 +108,9 @@ fn main() {
     // for tracking state changes, running OnEnter/OnExit, or evaluating in_state().
     .init_state::<GameState>()
     .add_systems(PreStartup, load_game_font)
-    .add_systems(Startup, spawn_slimes.after(animation::load_sprite_sheets))
+    .add_systems(Startup, spawn_camera)
+    .add_systems(OnEnter(GameState::Combat), setup_combat_arena)
+    .add_systems(OnExit(GameState::Combat), cleanup_combat_resources)
     .add_systems(
         Update,
         kill_random_on_spacebar.run_if(in_state(GameState::Combat)),
@@ -135,79 +129,38 @@ pub fn load_game_font(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.insert_resource(GameFont(font));
 }
 
-/// Spawns both armies using data from our resources instead of hardcoded values.
-///
-/// - Player army size comes from SaveData (persisted to disk between sessions)
-/// - Enemy army comes from EnemyArmies (static game data defined in code)
-///
-/// Note: we take Res<T> (immutable reference) since we only need to read these.
-/// If we needed to modify them, we'd use ResMut<T>.
-fn spawn_slimes(
+/// Spawns the camera. This runs once at Startup and persists across all states.
+fn spawn_camera(mut commands: Commands, arena: Res<ArenaBounds>) {
+    // Camera2d is a marker component that says "this is a 2D camera."
+    // We override the Projection to use ScalingMode::Fixed so the camera
+    // ALWAYS shows exactly 1200x800 world units, no matter the window size.
+    //
+    // Important Bevy 0.18 detail: OrthographicProjection is NOT a standalone
+    // component. It's wrapped inside the Projection enum:
+    //   Projection::Orthographic(OrthographicProjection { ... })
+    commands.spawn((
+        Camera2d,
+        Projection::Orthographic(OrthographicProjection {
+            scaling_mode: ScalingMode::Fixed {
+                width: arena.width,
+                height: arena.height,
+            },
+            ..OrthographicProjection::default_2d()
+        }),
+    ));
+}
+
+/// Spawns the combat arena background and vignette.
+/// Runs on OnEnter(GameState::Combat). DespawnOnExit auto-cleans them when
+/// leaving Combat, so we don't need manual cleanup queries.
+fn setup_combat_arena(
     mut commands: Commands,
-    save_data: Res<SaveData>,
-    enemy_armies: Res<EnemyArmies>,
     arena: Res<ArenaBounds>,
     asset_server: Res<AssetServer>,
     mut images: ResMut<Assets<Image>>,
 ) {
-    //  let mut rng = rand::thread_rng();
-
-    //  // Player army — count comes from the save file
-    //  for _ in 0..save_data.slime_count {
-    //      let x = rng.gen_range(-500.0..-100.0);
-    //      let y = rng.gen_range(-300.0..300.0);
-    //      commands.spawn((
-    //          AnimationType::SlimeJumpIdle,
-    //          Transform::from_xyz(x, y, 0.0),
-    //          Team::Player,
-    //          PickTargetStrategy::Close,
-    //          DeathAnimation(AnimationType::SlimeDeath),
-    //          Health(10),
-    //          Speed(125.0),
-    //          // KnownAttacks is the entity's "move list" — all attacks it can perform.
-    //          // pick_attack_system will choose from these based on distance to target.
-    //          KnownAttacks(vec![Attack {
-    //              animation: AnimationType::SlimeAttack,
-    //              hit_frame: 3, // damage lands on frame 3 of the attack animation
-    //              on_hit_effect: AttackEffect {
-    //                  damage: 2,
-    //                  knockback: 0.0,
-    //              },
-    //              range: 60.0, // must be >= 50.0 (movement stops at 50 units)
-    //          }]),
-    //      ));
-    //  }
-
-    //  // Enemy army — use the first army definition for now.
-    //  // Later, which army you fight could depend on what stage/round you're on.
-    //  let enemy_army = &enemy_armies.armies[0];
-    //  for _ in 0..enemy_army.slime_count {
-    //      let x = rng.gen_range(100.0..500.0);
-    //      let y = rng.gen_range(-300.0..300.0);
-    //      commands.spawn((
-    //          AnimationType::SlimeJumpIdle,
-    //          Transform::from_xyz(x, y, 0.0),
-    //          Team::Enemy,
-    //          PickTargetStrategy::Close,
-    //          DeathAnimation(AnimationType::SlimeDeath),
-    //          Health(10),
-    //          Speed(125.0),
-    //          KnownAttacks(vec![Attack {
-    //              animation: AnimationType::SlimeAttack,
-    //              hit_frame: 3,
-    //              on_hit_effect: AttackEffect {
-    //                  damage: 2,
-    //                  knockback: 0.0,
-    //              },
-    //              range: 60.0,
-    //          }]),
-    //      ));
-    //  }
-
-    // Background image. z = -1 places it behind all game entities (which default to z = 0+).
-    // custom_size overrides the sprite dimensions so it fills the arena regardless of
-    // the image's native resolution. The image field holds the asset Handle<Image>.
     commands.spawn((
+        DespawnOnExit(GameState::Combat),
         render::Background,
         Sprite {
             image: asset_server.load("backgrounds/personal-stones.png"),
@@ -220,14 +173,10 @@ fn spawn_slimes(
 
     // Vignette overlay: a programmatically-generated gradient texture that's
     // dark/opaque at the top and bottom edges and transparent in the middle.
-    // This is created in code rather than loaded from a file — Bevy's Assets<Image>
-    // lets you add images you build yourself, not just ones from disk.
     let vignette_height: u32 = 64;
     let mut pixel_data = Vec::with_capacity((vignette_height * 4) as usize);
     for y in 0..vignette_height {
         let t = y as f32 / (vignette_height - 1) as f32;
-        // Squaring the distance from center makes the fade nonlinear:
-        // mostly transparent in the middle, ramping up sharply near edges.
         let edge_dist = (2.0 * (t - 0.5)).powi(2);
         let alpha = (edge_dist * 215.0) as u8;
         pixel_data.extend_from_slice(&[0, 0, 0, alpha]);
@@ -243,13 +192,11 @@ fn spawn_slimes(
         TextureFormat::Rgba8UnormSrgb,
         default(),
     );
-    // Nearest-neighbor would show visible banding on a 64-pixel gradient
-    // stretched to 800 pixels. Linear interpolation smooths between the
-    // 64 samples so the fade looks continuous.
     vignette_image.sampler = ImageSampler::linear();
     let vignette_handle = images.add(vignette_image);
 
     commands.spawn((
+        DespawnOnExit(GameState::Combat),
         render::Background,
         Sprite {
             image: vignette_handle,
@@ -258,37 +205,14 @@ fn spawn_slimes(
         },
         Transform::from_xyz(0.0, 0.0, 9.0),
     ));
+}
 
-    // Camera2d is a marker component that says "this is a 2D camera."
-    // When spawned, Bevy's #[require] attribute automatically adds Camera,
-    // Projection, and Frustum components with sensible 2D defaults.
-    //
-    // We override the Projection to use ScalingMode::Fixed so the camera
-    // ALWAYS shows exactly 1200x800 world units, no matter the window size.
-    // If the user makes the window larger, everything scales up — the visible
-    // area stays the same. This is ideal for pixel art games where you want
-    // a consistent viewport.
-    //
-    // Important Bevy 0.18 detail: OrthographicProjection is NOT a standalone
-    // component. It's wrapped inside the Projection enum:
-    //   Projection::Orthographic(OrthographicProjection { ... })
-    // This is because a camera could also use Projection::Perspective for 3D.
-    // The enum lets Bevy handle both projection types with one component slot.
-    //
-    // Alternative scaling modes worth knowing:
-    // - WindowSize: 1 world unit = 1 pixel (visible area changes with window)
-    // - AutoMin/AutoMax: adapts to aspect ratio while guaranteeing min/max area
-    // - FixedVertical/FixedHorizontal: locks one axis, stretches the other
-    commands.spawn((
-        Camera2d,
-        Projection::Orthographic(OrthographicProjection {
-            scaling_mode: ScalingMode::Fixed {
-                width: arena.width,
-                height: arena.height,
-            },
-            ..OrthographicProjection::default_2d()
-        }),
-    ));
+/// Removes combat-only resources when leaving the Combat state.
+fn cleanup_combat_resources(mut commands: Commands) {
+    commands.remove_resource::<end_round::RoundResult>();
+    commands.remove_resource::<setup_round::PreGameTimer>();
+    commands.remove_resource::<spawn_slimes::SlimeSpawnTimer>();
+    commands.remove_resource::<spawn_slimes::SlimesToSpawn>();
 }
 
 /// Debug system: press spacebar to kill a random slime.
@@ -309,6 +233,7 @@ mod audio;
 mod combat;
 mod end_round;
 mod health;
+mod home;
 mod movement;
 mod pick_target;
 mod render;
