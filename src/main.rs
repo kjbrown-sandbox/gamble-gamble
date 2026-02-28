@@ -1,7 +1,5 @@
 use bevy::camera::ScalingMode;
-use bevy::image::ImageSampler;
 use bevy::prelude::*;
-use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use bevy::window::{WindowResizeConstraints, WindowResolution};
 use rand::seq::IteratorRandom;
 
@@ -109,9 +107,7 @@ fn main() {
     // for tracking state changes, running OnEnter/OnExit, or evaluating in_state().
     .init_state::<GameState>()
     .add_systems(PreStartup, load_game_font)
-    .add_systems(Startup, (spawn_camera, leave_initial_loading))
-    .add_systems(OnEnter(GameState::Combat), setup_combat_arena)
-    .add_systems(OnExit(GameState::Combat), cleanup_combat_resources)
+    .add_systems(Startup, spawn_camera)
     .add_systems(
         Update,
         kill_random_on_spacebar.run_if(in_state(GameState::Combat)),
@@ -128,13 +124,6 @@ fn main() {
 pub fn load_game_font(mut commands: Commands, asset_server: Res<AssetServer>) {
     let font = asset_server.load("typography/upheaval/upheaval-tt-brk.upheaval-tt-brk.ttf");
     commands.insert_resource(GameFont(font));
-}
-
-/// Transitions out of InitialLoading into Combat. By running at Startup (which
-/// fires after PreStartup), all resources like GameFont, SaveData, and GameAudio
-/// are guaranteed to exist before any OnEnter(Combat) systems run.
-fn leave_initial_loading(mut next_state: ResMut<NextState<GameState>>) {
-    next_state.set(GameState::Combat);
 }
 
 /// Spawns the camera. This runs once at Startup and persists across all states.
@@ -156,71 +145,6 @@ fn spawn_camera(mut commands: Commands, arena: Res<ArenaBounds>) {
             ..OrthographicProjection::default_2d()
         }),
     ));
-}
-
-/// Spawns the combat arena background and vignette.
-/// Runs on OnEnter(GameState::Combat). DespawnOnExit auto-cleans them when
-/// leaving Combat, so we don't need manual cleanup queries.
-fn setup_combat_arena(
-    mut commands: Commands,
-    arena: Res<ArenaBounds>,
-    asset_server: Res<AssetServer>,
-    mut images: ResMut<Assets<Image>>,
-) {
-    commands.spawn((
-        DespawnOnExit(GameState::Combat),
-        render::Background,
-        Sprite {
-            image: asset_server.load("backgrounds/personal-stones.png"),
-            custom_size: Some(Vec2::new(arena.width, arena.height)),
-            color: Color::srgba(1.0, 1.0, 1.0, 0.05),
-            ..default()
-        },
-        Transform::from_xyz(0.0, 0.0, -10.0).with_scale(Vec3::splat(3.0)),
-    ));
-
-    // Vignette overlay: a programmatically-generated gradient texture that's
-    // dark/opaque at the top and bottom edges and transparent in the middle.
-    let vignette_height: u32 = 64;
-    let mut pixel_data = Vec::with_capacity((vignette_height * 4) as usize);
-    for y in 0..vignette_height {
-        let t = y as f32 / (vignette_height - 1) as f32;
-        let edge_dist = (2.0 * (t - 0.5)).powi(2);
-        let alpha = (edge_dist * 215.0) as u8;
-        pixel_data.extend_from_slice(&[0, 0, 0, alpha]);
-    }
-    let mut vignette_image = Image::new(
-        Extent3d {
-            width: 1,
-            height: vignette_height,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        pixel_data,
-        TextureFormat::Rgba8UnormSrgb,
-        default(),
-    );
-    vignette_image.sampler = ImageSampler::linear();
-    let vignette_handle = images.add(vignette_image);
-
-    commands.spawn((
-        DespawnOnExit(GameState::Combat),
-        render::Background,
-        Sprite {
-            image: vignette_handle,
-            custom_size: Some(Vec2::new(arena.width, arena.height)),
-            ..default()
-        },
-        Transform::from_xyz(0.0, 0.0, 9.0),
-    ));
-}
-
-/// Removes combat-only resources when leaving the Combat state.
-fn cleanup_combat_resources(mut commands: Commands) {
-    commands.remove_resource::<end_round::RoundResult>();
-    commands.remove_resource::<setup_round::PreGameTimer>();
-    commands.remove_resource::<spawn_slimes::SlimeSpawnTimer>();
-    commands.remove_resource::<spawn_slimes::SlimesToSpawn>();
 }
 
 /// Debug system: press spacebar to kill a random slime.

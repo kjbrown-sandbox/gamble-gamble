@@ -3,13 +3,15 @@ use bevy::prelude::*;
 use crate::animation::{AnimationType, VictoryAnimation};
 use crate::pick_target::Team;
 use crate::setup_round::PreGameTimer;
+use crate::spawn_slimes::{SlimeSpawnTimer, SlimesToSpawn};
 use crate::{GameFont, GameState};
 
 pub struct EndRoundPlugin;
 
 impl Plugin for EndRoundPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(
+        app.add_systems(OnExit(GameState::Combat), cleanup_combat_resources)
+            .add_systems(
             Update,
             (
                 check_round_end_system.run_if(
@@ -155,4 +157,12 @@ fn button_hover_system(
             Interaction::None => BUTTON_COLOR.into(),
         };
     }
+}
+
+/// Removes combat-only resources when leaving the Combat state.
+fn cleanup_combat_resources(mut commands: Commands) {
+    commands.remove_resource::<RoundResult>();
+    commands.remove_resource::<PreGameTimer>();
+    commands.remove_resource::<SlimeSpawnTimer>();
+    commands.remove_resource::<SlimesToSpawn>();
 }
