@@ -1,7 +1,6 @@
 use bevy::{audio::Volume, prelude::*};
 use rand::Rng;
 
-use crate::GameFont;
 use crate::{
     animation::{AnimationState, AnimationType, IdleAnimation, SpriteSheets, VictoryAnimation},
     audio::GameAudio,
@@ -10,6 +9,7 @@ use crate::{
     movement::{Speed, TargetEntity},
     pick_target::{PickTargetStrategy, Team},
     setup_round::Inert,
+    GameFont, GameState,
 };
 
 pub struct SpecialAbilitiesPlugin;
@@ -39,7 +39,8 @@ impl Plugin for SpecialAbilitiesPlugin {
                 execute_merge_system,
                 cancel_merge_system,
             )
-                .chain(),
+                .chain()
+                .run_if(in_state(GameState::Combat)),
         );
     }
 }

@@ -29,14 +29,14 @@ pub struct GameAudio {
 }
 
 fn start_background_music(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn((
-        AudioPlayer::new(asset_server.load("audio/pixabay/nickpanekaiassets-8-bit-chiptune-action-music-for-video-games-329940.mp3")),
-        PlaybackSettings {
-            mode: bevy::audio::PlaybackMode::Loop,
-            volume: Volume::Linear(0.5),
-            ..default()
-        },
-    ));
+    // commands.spawn((
+    //     AudioPlayer::new(asset_server.load("audio/pixabay/nickpanekaiassets-8-bit-chiptune-action-music-for-video-games-329940.mp3")),
+    //     PlaybackSettings {
+    //         mode: bevy::audio::PlaybackMode::Loop,
+    //         volume: Volume::Linear(0.5),
+    //         ..default()
+    //     },
+    // ));
 }
 
 pub fn setup_audio(mut commands: Commands, asset_server: Res<AssetServer>) {

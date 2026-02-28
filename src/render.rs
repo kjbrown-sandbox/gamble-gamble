@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 use crate::movement::TargetEntity;
+use crate::GameState;
 
 /// Marker for entities whose z-position should not be touched by y_sort_system.
 #[derive(Component)]
@@ -10,7 +11,13 @@ pub struct RenderPlugin;
 
 impl Plugin for RenderPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (y_sort_system, face_target_system));
+        app.add_systems(
+            Update,
+            (
+                y_sort_system,
+                face_target_system.run_if(in_state(GameState::Combat)),
+            ),
+        );
     }
 }
 

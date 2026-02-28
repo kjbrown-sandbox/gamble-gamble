@@ -10,6 +10,7 @@ use crate::{
     save_load::SaveData,
     setup_round::Inert,
     sprite_modifications::{LerpType, SpriteModification},
+    GameState,
 };
 
 pub struct SpawnSlimesPlugin;
@@ -19,7 +20,9 @@ impl Plugin for SpawnSlimesPlugin {
         app.add_systems(Startup, setup_slime_spawn_system)
             .add_systems(
                 Update,
-                spawn_slimes_system.run_if(resource_exists::<SlimeSpawnTimer>),
+                spawn_slimes_system
+                    .run_if(in_state(GameState::Combat))
+                    .run_if(resource_exists::<SlimeSpawnTimer>),
             );
     }
 }

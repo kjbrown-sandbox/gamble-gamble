@@ -10,7 +10,7 @@ use crate::{
     setup_round::{Inert, StunTimer},
     shaders_lite::Flash,
     special_abilities::Merging,
-    GameFont,
+    GameFont, GameState,
 };
 
 pub struct CombatPlugin;
@@ -39,7 +39,8 @@ impl Plugin for CombatPlugin {
                 hit_frame_check_system,
                 attack_cleanup_system,
             )
-                .chain(),
+                .chain()
+                .run_if(in_state(GameState::Combat)),
         );
 
         // attack_cooldown_system runs independently — it just ticks cooldown timers
@@ -51,7 +52,8 @@ impl Plugin for CombatPlugin {
                 attack_cooldown_system,
                 shield_scale_punch_system,
                 floating_text_system,
-            ),
+            )
+                .run_if(in_state(GameState::Combat)),
         );
     }
 }

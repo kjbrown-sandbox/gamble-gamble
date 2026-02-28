@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::animation::{AnimationType, VictoryAnimation};
 use crate::pick_target::Team;
 use crate::setup_round::PreGameTimer;
-use crate::GameFont;
+use crate::{GameFont, GameState};
 
 pub struct EndRoundPlugin;
 
@@ -11,9 +11,12 @@ impl Plugin for EndRoundPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            check_round_end_system.run_if(
-                not(resource_exists::<RoundResult>).and(not(resource_exists::<PreGameTimer>)),
-            ),
+            check_round_end_system
+                .run_if(in_state(GameState::Combat))
+                .run_if(
+                    not(resource_exists::<RoundResult>)
+                        .and(not(resource_exists::<PreGameTimer>)),
+                ),
         );
     }
 }

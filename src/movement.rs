@@ -6,7 +6,7 @@ use crate::combat::ActiveAttack;
 use crate::health::{Dying, Health};
 use crate::setup_round::{Inert, StunTimer};
 use crate::special_abilities::{Merging, PreMerging};
-use crate::ArenaBounds;
+use crate::{ArenaBounds, GameState};
 
 pub struct MovementPlugin;
 
@@ -20,7 +20,8 @@ impl Plugin for MovementPlugin {
                 unsmush_system,
                 out_of_bounds_system,
             )
-                .chain(),
+                .chain()
+                .run_if(in_state(GameState::Combat)),
         );
     }
 }

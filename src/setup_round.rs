@@ -5,7 +5,7 @@ use crate::{
     audio::GameAudio,
     combat::{FloatingText, IceImpactVfx},
     utils::DespawnAfter,
-    GameFont,
+    GameFont, GameState,
 };
 
 pub struct SetupRoundPlugin;
@@ -18,7 +18,8 @@ impl Plugin for SetupRoundPlugin {
                 pre_game_timer_system.run_if(resource_exists::<PreGameTimer>),
                 stun_timer_system,
                 on_add_stun_system,
-            ),
+            )
+                .run_if(in_state(GameState::Combat)),
         );
     }
 }
@@ -48,7 +49,7 @@ fn start_pre_game_timer(mut commands: Commands, game_font: Res<GameFont>, audio:
         DespawnAfter(Timer::from_seconds(3.2, TimerMode::Once)),
     ));
 
-    // commands.spawn((AudioPlayer::new(audio.ready.clone()),));
+    commands.spawn((AudioPlayer::new(audio.ready.clone()),));
 }
 
 fn pre_game_timer_system(

@@ -16,6 +16,13 @@ use crate::movement::Speed;
 use crate::pick_target::{PickTargetStrategy, Team};
 use crate::save_load::SaveData;
 
+#[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub enum GameState {
+    Home,
+    #[default]
+    Combat,
+}
+
 #[derive(Resource)]
 pub struct ArenaBounds {
     pub width: f32,
@@ -103,13 +110,17 @@ fn main() {
         shaders_lite::ShadersLitePlugin,
         sprite_modifications::SpriteModificationsPlugin,
     ))
-    // spawn_slimes needs three resources to exist first:
-    //   - SpriteSheets (from animation::load_sprite_sheets)
-    //   - SaveData (from save_load's startup system)
-    //   - EnemyArmies (from armies plugin, via init_resource — available immediately)
+    // init_state must come AFTER add_plugins(DefaultPlugins) because DefaultPlugins
+    // includes StatesPlugin, which sets up the StateTransition schedule that
+    // init_state depends on. Without StatesPlugin, there's no infrastructure
+    // for tracking state changes, running OnEnter/OnExit, or evaluating in_state().
+    .init_state::<GameState>()
     .add_systems(PreStartup, load_game_font)
     .add_systems(Startup, spawn_slimes.after(animation::load_sprite_sheets))
-    .add_systems(Update, kill_random_on_spacebar)
+    .add_systems(
+        Update,
+        kill_random_on_spacebar.run_if(in_state(GameState::Combat)),
+    )
     .run();
 }
 

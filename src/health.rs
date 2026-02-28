@@ -8,6 +8,7 @@ use crate::{
     audio::GameAudio,
     movement::{Speed, TargetEntity},
     shaders_lite::DamageTint,
+    GameState,
 };
 
 pub struct HealthPlugin;
@@ -20,7 +21,8 @@ impl Plugin for HealthPlugin {
                 set_dying_system,
                 when_starts_dying_system,
                 when_finishes_dying_system,
-            ),
+            )
+                .run_if(in_state(GameState::Combat)),
         )
         .add_observer(on_damaged_event);
     }

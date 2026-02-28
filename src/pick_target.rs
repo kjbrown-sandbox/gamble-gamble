@@ -7,12 +7,16 @@ use crate::health::{Dying, Health};
 use crate::movement::TargetEntity;
 use crate::setup_round::Inert;
 use crate::special_abilities::Merging;
+use crate::GameState;
 
 pub struct PickTargetPlugin;
 
 impl Plugin for PickTargetPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (pick_target_system, closest_target_system));
+        app.add_systems(
+            Update,
+            (pick_target_system, closest_target_system).run_if(in_state(GameState::Combat)),
+        );
     }
 }
 
