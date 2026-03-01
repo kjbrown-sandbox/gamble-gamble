@@ -7,6 +7,11 @@ use crate::GameState;
 #[derive(Component)]
 pub struct Background;
 
+/// Marker for the vignette overlay. Separate from Background so it doesn't
+/// scroll when the background moves, but still excluded from y-sorting.
+#[derive(Component)]
+pub struct Vignette;
+
 pub struct RenderPlugin;
 
 impl Plugin for RenderPlugin {
@@ -36,7 +41,9 @@ fn face_target_system(
 }
 
 /// Sorts sprites by y position so lower enemies appear in front
-fn y_sort_system(mut query: Query<&mut Transform, (With<Sprite>, Without<Background>)>) {
+fn y_sort_system(
+    mut query: Query<&mut Transform, (With<Sprite>, Without<Background>, Without<Vignette>)>,
+) {
     for mut transform in &mut query {
         // Negate y: lower y (bottom of screen) -> higher z (drawn in front)
         // Scale down to keep z values small and leave room for other layers

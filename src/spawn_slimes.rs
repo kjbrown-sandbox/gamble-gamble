@@ -28,9 +28,9 @@ impl Plugin for SpawnSlimesPlugin {
 }
 
 pub(crate) struct SlimeAmounts {
-    normal_slimes: u32,
-    tanks: u32,
-    wizards: u32,
+    pub(crate) normal_slimes: u32,
+    pub(crate) tanks: u32,
+    pub(crate) wizards: u32,
 }
 
 #[derive(Resource)]
@@ -51,8 +51,8 @@ fn setup_slime_spawn_system(mut commands: Commands, save_data: Res<SaveData>) {
         },
         enemy_slimes: SlimeAmounts {
             normal_slimes: 1,
-            tanks: 10,
-            wizards: 1,
+            tanks: 0,
+            wizards: 0,
         },
     });
 

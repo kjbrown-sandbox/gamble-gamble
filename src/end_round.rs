@@ -1,9 +1,14 @@
 use bevy::prelude::*;
+use rand::Rng;
 
-use crate::animation::{AnimationType, VictoryAnimation};
+use crate::animation::{AnimationType, IdleAnimation, VictoryAnimation};
+use crate::audio::GameAudio;
+use crate::movement::{Speed, TargetTransform};
 use crate::pick_target::Team;
-use crate::setup_round::PreGameTimer;
-use crate::spawn_slimes::{SlimeSpawnTimer, SlimesToSpawn};
+use crate::render::Background;
+use crate::setup_round::{Inert, PreGameTimer};
+use crate::spawn_slimes::{SlimeAmounts, SlimeSpawnTimer, SlimesToSpawn};
+use crate::utils::DespawnAfter;
 use crate::{GameFont, GameState};
 
 pub struct EndRoundPlugin;
@@ -19,6 +24,7 @@ impl Plugin for EndRoundPlugin {
                         .and(not(resource_exists::<PreGameTimer>)),
                 ),
                 go_home_button_system.run_if(resource_exists::<RoundResult>),
+                venture_further_button_system.run_if(resource_exists::<RoundResult>),
                 button_hover_system,
             )
                 .run_if(in_state(GameState::Combat)),
@@ -35,6 +41,9 @@ struct RoundResultText;
 
 #[derive(Component)]
 struct GoHomeButton;
+
+#[derive(Component)]
+struct VentureFurtherButton;
 
 const BUTTON_COLOR: Color = Color::srgb(0.2, 0.2, 0.2);
 const BUTTON_HOVER_COLOR: Color = Color::srgb(0.35, 0.35, 0.35);
@@ -83,6 +92,8 @@ fn check_round_end_system(
         }
     }
 
+    let is_victory = has_player && !has_enemy;
+
     commands
         .spawn((
             RoundResultText,
@@ -110,29 +121,44 @@ fn check_round_end_system(
             ));
 
             parent
-                .spawn((
-                    GoHomeButton,
-                    Button,
-                    Node {
-                        width: Val::Px(250.0),
-                        height: Val::Px(65.0),
-                        justify_content: JustifyContent::Center,
-                        align_items: AlignItems::Center,
-                        ..default()
-                    },
-                    BackgroundColor(BUTTON_COLOR),
-                ))
-                .with_children(|btn| {
-                    btn.spawn((
-                        Text::new("Go Home"),
-                        TextFont {
-                            font: game_font.0.clone(),
-                            font_size: 40.0,
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                    ));
+                .spawn(Node {
+                    flex_direction: FlexDirection::Row,
+                    column_gap: Val::Px(20.0),
+                    ..default()
+                })
+                .with_children(|row| {
+                    if is_victory {
+                        spawn_button(row, &game_font, "Venture Further", VentureFurtherButton);
+                    }
+                    spawn_button(row, &game_font, "Go Home", GoHomeButton);
                 });
+        });
+}
+
+fn spawn_button(parent: &mut ChildSpawnerCommands, game_font: &Res<GameFont>, label: &str, marker: impl Component) {
+    parent
+        .spawn((
+            marker,
+            Button,
+            Node {
+                width: Val::Px(250.0),
+                height: Val::Px(65.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            BackgroundColor(BUTTON_COLOR),
+        ))
+        .with_children(|btn| {
+            btn.spawn((
+                Text::new(label),
+                TextFont {
+                    font: game_font.0.clone(),
+                    font_size: 40.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+            ));
         });
 }
 
@@ -145,6 +171,91 @@ fn go_home_button_system(
             next_state.set(GameState::Home);
         }
     }
+}
+
+fn venture_further_button_system(
+    mut commands: Commands,
+    query: Query<&Interaction, (Changed<Interaction>, With<VentureFurtherButton>)>,
+    ui_query: Query<Entity, With<RoundResultText>>,
+    mut player_slimes: Query<(Entity, &Team, &mut AnimationType, &IdleAnimation)>,
+    backgrounds: Query<(Entity, &Transform), With<Background>>,
+    game_font: Res<GameFont>,
+    audio: Res<GameAudio>,
+) {
+    let mut clicked = false;
+    for interaction in &query {
+        if *interaction == Interaction::Pressed {
+            clicked = true;
+        }
+    }
+    if !clicked {
+        return;
+    }
+
+    // Despawn end-round UI
+    for entity in &ui_query {
+        commands.entity(entity).despawn();
+    }
+    commands.remove_resource::<RoundResult>();
+
+    // Reposition surviving player slimes to random spots on the left side
+    let mut rng = rand::thread_rng();
+    for (entity, team, mut anim_type, idle_anim) in player_slimes.iter_mut() {
+        if *team != Team::Player {
+            continue;
+        }
+
+        let x = rng.gen_range(-500.0..-100.0);
+        let y = rng.gen_range(-200.0..200.0);
+        commands
+            .entity(entity)
+            .insert(TargetTransform(Vec3::new(x, y, 0.0)))
+            .insert(Inert);
+
+        *anim_type = idle_anim.0;
+    }
+
+    // Scroll background left for a travel illusion
+    for (entity, transform) in backgrounds.iter() {
+        let target = Vec3::new(
+            transform.translation.x - 200.0,
+            transform.translation.y,
+            transform.translation.z,
+        );
+        commands
+            .entity(entity)
+            .insert((TargetTransform(target), Speed(60.0)));
+    }
+
+    // Spawn new enemies
+    commands.insert_resource(SlimesToSpawn {
+        player_slimes: SlimeAmounts {
+            normal_slimes: 0,
+            tanks: 0,
+            wizards: 0,
+        },
+        enemy_slimes: SlimeAmounts {
+            normal_slimes: 1,
+            tanks: 10,
+            wizards: 1,
+        },
+    });
+    commands.insert_resource(SlimeSpawnTimer(Timer::from_seconds(0.1, TimerMode::Repeating)));
+
+    // Start the READY/GO sequence
+    commands.insert_resource(PreGameTimer(Timer::from_seconds(3.2, TimerMode::Once)));
+    commands.spawn((
+        Text2d::new("READY"),
+        TextFont {
+            font: game_font.0.clone(),
+            font_size: 100.0,
+            ..default()
+        },
+        TextColor(Color::WHITE),
+        Transform::from_xyz(0.0, 25.0, 1.0),
+        DespawnAfter(Timer::from_seconds(3.2, TimerMode::Once)),
+    ));
+    commands.spawn((AudioPlayer::new(audio.ready.clone()),));
 }
 
 fn button_hover_system(

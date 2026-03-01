@@ -1,8 +1,8 @@
 (
     army: (
-        normal: 1,
-        tanks: 10,
-        wizards: 1,
+        normal: 0,
+        tanks: 1,
+        wizards: 5,
     ),
     upgrades: (
         normal: (

@@ -6,7 +6,7 @@ use crate::{
     animation::AnimationState,
     audio::GameAudio,
     combat::{FloatingText, IceImpactVfx},
-    render,
+    render::{self, Vignette},
     utils::DespawnAfter,
     ArenaBounds, GameFont, GameState,
 };
@@ -40,7 +40,7 @@ pub struct Inert;
 /// Resource that counts down the pre-game pause before combat begins.
 /// Once it expires, it removes itself and strips Inert from every entity.
 #[derive(Resource)]
-pub struct PreGameTimer(Timer);
+pub struct PreGameTimer(pub Timer);
 
 fn start_pre_game_timer(mut commands: Commands, game_font: Res<GameFont>, audio: Res<GameAudio>) {
     commands.insert_resource(PreGameTimer(Timer::from_seconds(3.2, TimerMode::Once)));
@@ -216,7 +216,7 @@ fn setup_combat_arena(
 
     commands.spawn((
         DespawnOnExit(GameState::Combat),
-        render::Background,
+        Vignette,
         Sprite {
             image: vignette_handle,
             custom_size: Some(Vec2::new(arena.width, arena.height)),

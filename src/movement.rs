@@ -17,6 +17,7 @@ impl Plugin for MovementPlugin {
             (
                 knockback_system,
                 move_to_target_system,
+                move_to_target_transform_system,
                 unsmush_system,
                 out_of_bounds_system,
             )
@@ -28,6 +29,9 @@ impl Plugin for MovementPlugin {
 
 #[derive(Component)]
 pub struct TargetEntity(pub Entity);
+
+#[derive(Component)]
+pub struct TargetTransform(pub Vec3);
 
 #[derive(Component, Copy, Clone, PartialEq)]
 pub struct Speed(pub f32);
@@ -108,6 +112,37 @@ pub fn move_to_target_system(
                 let clamped = local_xy.normalize() * max_dist.0;
                 transform.translation.x = clamped.x;
                 transform.translation.y = clamped.y;
+            }
+        }
+    }
+}
+
+fn move_to_target_transform_system(
+    mut commands: Commands,
+    mut movers: Query<
+        (Entity, &mut Transform, &TargetTransform, &Speed),
+        (Without<Dying>, Without<Knockback>),
+    >,
+    time: Res<Time>,
+) {
+    let delta = time.delta_secs();
+
+    for (entity, mut transform, target, speed) in movers.iter_mut() {
+        let dest = target.0;
+        let x_diff = dest.x - transform.translation.x;
+        let y_diff = dest.y - transform.translation.y;
+
+        if x_diff.abs() > 2.0 {
+            transform.translation.x += speed.0 * delta * x_diff.signum();
+        }
+        if y_diff.abs() > 2.0 {
+            transform.translation.y += speed.0 * delta * y_diff.signum();
+        }
+
+        if x_diff.abs() <= 2.0 && y_diff.abs() <= 2.0 {
+            if let Ok(mut cmds) = commands.get_entity(entity) {
+                cmds.remove::<TargetTransform>();
+                cmds.remove::<TargetEntity>();
             }
         }
     }
