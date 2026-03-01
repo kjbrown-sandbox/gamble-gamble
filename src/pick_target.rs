@@ -3,10 +3,11 @@ use std::time;
 use bevy::{prelude::*, state::commands};
 use rand::seq::IteratorRandom;
 
-use crate::health::{Dying, Health};
+use crate::health::Dying;
 use crate::movement::TargetEntity;
 use crate::setup_round::Inert;
 use crate::special_abilities::Merging;
+use crate::status::CanBeTargeted;
 use crate::GameState;
 
 pub struct PickTargetPlugin;
@@ -42,7 +43,7 @@ pub fn pick_target_system(
         (Entity, &PickTargetStrategy, &Team, &GlobalTransform),
         (Without<TargetEntity>, Without<Inert>, Without<Merging>, Without<Dying>),
     >,
-    potential_targets: Query<(Entity, &Team, &GlobalTransform), (With<Health>, Without<Dying>)>,
+    potential_targets: Query<(Entity, &Team, &GlobalTransform), With<CanBeTargeted>>,
     mut commands: Commands,
 ) {
     let mut rng = rand::thread_rng();
@@ -92,7 +93,7 @@ fn closest_target_system(
         (Entity, &PickTargetStrategy, &Team, &GlobalTransform),
         (Without<Inert>, Without<Merging>, Without<Dying>),
     >,
-    potential_targets: Query<(Entity, &Team, &GlobalTransform), (With<Health>, Without<Dying>)>,
+    potential_targets: Query<(Entity, &Team, &GlobalTransform), With<CanBeTargeted>>,
     mut commands: Commands,
 ) {
     for (entity, strategy, team, transform) in seekers.iter() {

@@ -8,6 +8,7 @@
 
 use bevy::prelude::*;
 
+use crate::health::{Dying, Health};
 use crate::movement::Knockback;
 use crate::special_abilities::{Merging, PreMerging};
 use crate::GameState;
@@ -18,7 +19,8 @@ impl Plugin for StatusPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             PreUpdate,
-            update_can_be_moved.run_if(in_state(GameState::Combat)),
+            (update_can_be_moved, update_can_be_targeted)
+                .run_if(in_state(GameState::Combat)),
         );
     }
 }
@@ -28,6 +30,11 @@ impl Plugin for StatusPlugin {
 /// or mid-knockback.
 #[derive(Component)]
 pub struct CanBeMoved;
+
+/// Present when an entity is a valid combat target.
+/// Removed when the entity has no Health or is Dying.
+#[derive(Component)]
+pub struct CanBeTargeted;
 
 fn update_can_be_moved(
     mut commands: Commands,
@@ -53,5 +60,27 @@ fn update_can_be_moved(
     }
     for entity in &ineligible {
         commands.entity(entity).remove::<CanBeMoved>();
+    }
+}
+
+fn update_can_be_targeted(
+    mut commands: Commands,
+    eligible: Query<
+        Entity,
+        (With<Health>, Without<Dying>, Without<CanBeTargeted>),
+    >,
+    ineligible: Query<
+        Entity,
+        (
+            With<CanBeTargeted>,
+            Or<(Without<Health>, With<Dying>)>,
+        ),
+    >,
+) {
+    for entity in &eligible {
+        commands.entity(entity).insert(CanBeTargeted);
+    }
+    for entity in &ineligible {
+        commands.entity(entity).remove::<CanBeTargeted>();
     }
 }

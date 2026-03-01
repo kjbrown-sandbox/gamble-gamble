@@ -10,6 +10,7 @@ use crate::{
     setup_round::{Inert, StunTimer},
     shaders_lite::Flash,
     special_abilities::Merging,
+    status::CanBeTargeted,
     GameFont, GameState,
 };
 
@@ -319,7 +320,7 @@ fn on_hit_observer(
             &mut AnimationState,
             Option<&BlockChance>,
         )>,
-        Query<(Entity, &GlobalTransform, &Team), With<Health>>,
+        Query<(Entity, &GlobalTransform, &Team), With<CanBeTargeted>>,
     )>,
     audio: Res<GameAudio>,
     mut commands: Commands,
