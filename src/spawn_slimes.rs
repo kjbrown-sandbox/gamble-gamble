@@ -74,24 +74,24 @@ fn spawn_slimes_system(
 ) {
     if timer.0.just_finished() {
         if slimes_to_spawn.player_slimes.normal_slimes > 0 {
-            spawn_normal_slime(&mut commands, Team::Player);
+            spawn_normal_slime(&mut commands, Team::Player, 5);
             slimes_to_spawn.player_slimes.normal_slimes -= 1;
         } else if slimes_to_spawn.player_slimes.tanks > 0 {
-            spawn_tank_slime(&mut commands, Team::Player);
+            spawn_tank_slime(&mut commands, Team::Player, 10, 0.2, 0.1);
             slimes_to_spawn.player_slimes.tanks -= 1;
         } else if slimes_to_spawn.player_slimes.wizards > 0 {
-            spawn_wizard_slime(&mut commands, Team::Player);
+            spawn_wizard_slime(&mut commands, Team::Player, 5, 500.0, 1, 200.0);
             slimes_to_spawn.player_slimes.wizards -= 1;
         }
 
         if slimes_to_spawn.enemy_slimes.normal_slimes > 0 {
-            spawn_normal_slime(&mut commands, Team::Enemy);
+            spawn_normal_slime(&mut commands, Team::Enemy, 5);
             slimes_to_spawn.enemy_slimes.normal_slimes -= 1;
         } else if slimes_to_spawn.enemy_slimes.tanks > 0 {
-            spawn_tank_slime(&mut commands, Team::Enemy);
+            spawn_tank_slime(&mut commands, Team::Enemy, 10, 0.2, 0.1);
             slimes_to_spawn.enemy_slimes.tanks -= 1;
         } else if slimes_to_spawn.enemy_slimes.wizards > 0 {
-            spawn_wizard_slime(&mut commands, Team::Enemy);
+            spawn_wizard_slime(&mut commands, Team::Enemy, 5, 500.0, 1, 200.0);
             slimes_to_spawn.enemy_slimes.wizards -= 1;
         }
     }
@@ -111,7 +111,7 @@ fn spawn_slimes_system(
     timer.0.tick(game_time.delta());
 }
 
-fn spawn_normal_slime(commands: &mut Commands, team: Team) -> Entity {
+fn spawn_normal_slime(commands: &mut Commands, team: Team, hp: i32) -> Entity {
     let mut rng = rand::thread_rng();
 
     let player_x = rng.gen_range(-500.0..-100.0);
@@ -156,7 +156,7 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team) -> Entity {
                 ..default()
             },
             DeathAnimation(death_anim),
-            Health(5),
+            Health(hp),
             Speed(125.0),
             KnownAttacks(vec![Attack {
                 animation: attack_anim,
@@ -177,8 +177,14 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team) -> Entity {
         .id()
 }
 
-fn spawn_tank_slime(commands: &mut Commands, team: Team) -> Entity {
-    let entity = spawn_normal_slime(commands, team);
+fn spawn_tank_slime(
+    commands: &mut Commands,
+    team: Team,
+    hp: i32,
+    block_chance: f32,
+    stun_chance: f32,
+) -> Entity {
+    let entity = spawn_normal_slime(commands, team, hp);
 
     // Shield sits 30px to the right in the slime's facing direction.
     // Player slimes face right (+x), enemy slimes face left (−x).
@@ -204,7 +210,7 @@ fn spawn_tank_slime(commands: &mut Commands, team: Team) -> Entity {
         on_hit_effect: AttackEffect {
             damage: 2,
             knockback: 0.0,
-            stun_chance: 0.1,
+            stun_chance,
             stun_duration: 1.5,
             ..default()
         },
@@ -213,7 +219,7 @@ fn spawn_tank_slime(commands: &mut Commands, team: Team) -> Entity {
     // BlockChance is on the parent slime (the defender), not the shield child.
     commands
         .entity(entity)
-        .insert((Health(10), BlockChance(0.2)))
+        .insert(BlockChance(block_chance))
         .with_child((
             // Shield marker lets on_block_attack_observer find this specific child
             Shield,
@@ -228,8 +234,15 @@ fn spawn_tank_slime(commands: &mut Commands, team: Team) -> Entity {
     entity
 }
 
-fn spawn_wizard_slime(commands: &mut Commands, team: Team) -> Entity {
-    let entity = spawn_normal_slime(commands, team);
+fn spawn_wizard_slime(
+    commands: &mut Commands,
+    team: Team,
+    hp: i32,
+    spell_range: f32,
+    aoe_damage: i32,
+    spear_knockback: f32,
+) -> Entity {
+    let entity = spawn_normal_slime(commands, team, hp);
 
     let x_displacement = 30.0;
     let shield_x = match team {
@@ -244,19 +257,16 @@ fn spawn_wizard_slime(commands: &mut Commands, team: Team) -> Entity {
 
     commands
         .entity(entity)
-        .insert((
-            Health(5),
-            KnownAttacks(vec![Attack {
-                animation: mage_cast_anim,
-                hit_frame: 0, // single frame — damage lands immediately
-                on_hit_effect: AttackEffect {
-                    damage: 1,
-                    aoe_distance: Some(100.0),
-                    ..Default::default()
-                },
-                range: 500.0,
-            }]),
-        ))
+        .insert(KnownAttacks(vec![Attack {
+            animation: mage_cast_anim,
+            hit_frame: 0,
+            on_hit_effect: AttackEffect {
+                damage: aoe_damage,
+                aoe_distance: Some(100.0),
+                ..Default::default()
+            },
+            range: spell_range,
+        }]))
         .with_child((
             AnimationType::FrozenSpearIdle,
             IdleAnimation(AnimationType::FrozenSpearIdle),
@@ -271,7 +281,7 @@ fn spawn_wizard_slime(commands: &mut Commands, team: Team) -> Entity {
                 hit_frame: 5, // damage lands mid-animation
                 on_hit_effect: AttackEffect {
                     damage: 1,
-                    knockback: 200.0,
+                    knockback: spear_knockback,
                     ..Default::default()
                 },
                 range: 65.0,
