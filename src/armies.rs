@@ -1,60 +1,91 @@
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
 pub struct ArmiesPlugin;
 
 impl Plugin for ArmiesPlugin {
-    fn build(&self, app: &mut App) {
-        // Insert the resource directly at app build time.
-        // Since this is static data defined in code, we don't need a startup system —
-        // we can just call init_resource. Bevy will call EnemyArmies::default() for us.
-        app.init_resource::<EnemyArmies>();
+    fn build(&self, _app: &mut App) {}
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Army {
+    pub normal: NormalSlime,
+    pub tanks: TankSlime,
+    pub wizards: WizardSlime,
+}
+
+impl Default for Army {
+    fn default() -> Self {
+        Self {
+            normal: NormalSlime::default(),
+            tanks: TankSlime::default(),
+            wizards: WizardSlime::default(),
+        }
     }
 }
 
-/// Represents a predefined army configuration.
-/// These are static game data — the same every time you play.
-/// Think of them like level definitions or enemy encounter tables.
-///
-/// Unlike SaveData, these never change at runtime and never get written to disk.
-/// They're defined right here in code, just like animation frame counts or attack stats.
-#[derive(Debug, Clone)]
-pub struct ArmyDefinition {
-    pub name: String,
-    pub slime_count: u32,
-    // Eventually you might add:
-    // pub units: Vec<UnitType>,
-    // pub boss: Option<BossType>,
-    // pub difficulty: f32,
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NormalSlime {
+    pub count: u32,
+    pub hp: i32,
 }
 
-/// Resource that holds all enemy army definitions.
-///
-/// This is a Resource (shared game-wide data), not a Component (per-entity data).
-/// Any system can read it with Res<EnemyArmies>.
-///
-/// Why a Vec? Even though we only have one army now, the game design calls for
-/// progressing through multiple fights. A list of armies = a list of encounters.
-#[derive(Resource, Debug)]
-pub struct EnemyArmies {
-    pub armies: Vec<ArmyDefinition>,
+impl Default for NormalSlime {
+    fn default() -> Self {
+        Self { count: 1, hp: 5 }
+    }
 }
 
-/// Default gives us the starting set of enemy armies.
-/// Bevy's init_resource uses Default to create the resource automatically.
-impl Default for EnemyArmies {
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TankSlime {
+    pub count: u32,
+    pub hp: i32,
+    pub block_chance: f32,
+    pub stun_chance: f32,
+}
+
+impl Default for TankSlime {
     fn default() -> Self {
         Self {
-            armies: vec![
-                ArmyDefinition {
-                    name: "Basic Slimes".to_string(),
-                    slime_count: 5,
-                },
-                // Add more encounters here as the game grows:
-                // ArmyDefinition {
-                //     name: "Slime Horde".to_string(),
-                //     slime_count: 10,
-                // },
-            ],
+            count: 0,
+            hp: 10,
+            block_chance: 0.2,
+            stun_chance: 0.1,
         }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WizardSlime {
+    pub count: u32,
+    pub hp: i32,
+    pub spell_range: f32,
+    pub aoe_damage: i32,
+    pub spear_knockback: f32,
+}
+
+impl Default for WizardSlime {
+    fn default() -> Self {
+        Self {
+            count: 0,
+            hp: 5,
+            spell_range: 500.0,
+            aoe_damage: 1,
+            spear_knockback: 200.0,
+        }
+    }
+}
+
+pub fn create_enemy_army() -> Army {
+    Army {
+        normal: NormalSlime { count: 1, hp: 5 },
+        tanks: TankSlime {
+            count: 0,
+            ..Default::default()
+        },
+        wizards: WizardSlime {
+            count: 0,
+            ..Default::default()
+        },
     }
 }

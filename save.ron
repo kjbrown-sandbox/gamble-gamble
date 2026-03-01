@@ -1,23 +1,7 @@
 (
     army: (
-        normal: 0,
-        tanks: 1,
-        wizards: 5,
-    ),
-    upgrades: (
-        normal: (
-            hp: 5,
-        ),
-        tanks: (
-            hp: 10,
-            block_chance: 0.2,
-            stun_chance: 0.1,
-        ),
-        wizards: (
-            hp: 5,
-            spell_range: 500.0,
-            aoe_damage: 1,
-            spear_knockback: 200.0,
-        ),
+        normal: (count: 0, hp: 5),
+        tanks: (count: 1, hp: 10, block_chance: 0.2, stun_chance: 0.1),
+        wizards: (count: 5, hp: 5, spell_range: 500.0, aoe_damage: 1, spear_knockback: 200.0),
     ),
 )

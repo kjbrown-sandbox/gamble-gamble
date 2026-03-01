@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::armies::Army;
+
 pub struct SaveLoadPlugin;
 
 impl Plugin for SaveLoadPlugin {
@@ -30,85 +32,12 @@ impl Plugin for SaveLoadPlugin {
 #[derive(Resource, Serialize, Deserialize, Debug, Clone)]
 pub struct SaveData {
     pub army: Army,
-    pub upgrades: Upgrades,
 }
 
 impl Default for SaveData {
     fn default() -> Self {
         Self {
             army: Army::default(),
-            upgrades: Upgrades::default(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Army {
-    pub normal: u32,
-    pub tanks: u32,
-    pub wizards: u32,
-}
-
-impl Default for Army {
-    fn default() -> Self {
-        Self {
-            normal: 1,
-            tanks: 0,
-            wizards: 0,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct Upgrades {
-    pub normal: NormalUpgrades,
-    pub tanks: TankUpgrades,
-    pub wizards: WizardUpgrades,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct NormalUpgrades {
-    pub hp: i32,
-}
-
-impl Default for NormalUpgrades {
-    fn default() -> Self {
-        Self { hp: 5 }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TankUpgrades {
-    pub hp: i32,
-    pub block_chance: f32,
-    pub stun_chance: f32,
-}
-
-impl Default for TankUpgrades {
-    fn default() -> Self {
-        Self {
-            hp: 10,
-            block_chance: 0.2,
-            stun_chance: 0.1,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct WizardUpgrades {
-    pub hp: i32,
-    pub spell_range: f32,
-    pub aoe_damage: i32,
-    pub spear_knockback: f32,
-}
-
-impl Default for WizardUpgrades {
-    fn default() -> Self {
-        Self {
-            hp: 5,
-            spell_range: 500.0,
-            aoe_damage: 1,
-            spear_knockback: 200.0,
         }
     }
 }

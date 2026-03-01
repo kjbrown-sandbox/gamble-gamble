@@ -45,9 +45,9 @@ pub struct SlimeSpawnTimer(pub Timer);
 fn setup_slime_spawn_system(mut commands: Commands, save_data: Res<SaveData>) {
     commands.insert_resource(SlimesToSpawn {
         player_slimes: SlimeAmounts {
-            normal_slimes: save_data.army.normal,
-            tanks: save_data.army.tanks,
-            wizards: save_data.army.wizards,
+            normal_slimes: save_data.army.normal.count,
+            tanks: save_data.army.tanks.count,
+            wizards: save_data.army.wizards.count,
         },
         enemy_slimes: SlimeAmounts {
             normal_slimes: 1,
@@ -74,29 +74,28 @@ fn spawn_slimes_system(
     save_data: Res<SaveData>,
 ) {
     if timer.0.just_finished() {
-        let upgrades = &save_data.upgrades;
+        let army = &save_data.army;
 
-        // Player spawns read stats from save data upgrades
         if slimes_to_spawn.player_slimes.normal_slimes > 0 {
-            spawn_normal_slime(&mut commands, Team::Player, upgrades.normal.hp);
+            spawn_normal_slime(&mut commands, Team::Player, army.normal.hp);
             slimes_to_spawn.player_slimes.normal_slimes -= 1;
         } else if slimes_to_spawn.player_slimes.tanks > 0 {
             spawn_tank_slime(
                 &mut commands,
                 Team::Player,
-                upgrades.tanks.hp,
-                upgrades.tanks.block_chance,
-                upgrades.tanks.stun_chance,
+                army.tanks.hp,
+                army.tanks.block_chance,
+                army.tanks.stun_chance,
             );
             slimes_to_spawn.player_slimes.tanks -= 1;
         } else if slimes_to_spawn.player_slimes.wizards > 0 {
             spawn_wizard_slime(
                 &mut commands,
                 Team::Player,
-                upgrades.wizards.hp,
-                upgrades.wizards.spell_range,
-                upgrades.wizards.aoe_damage,
-                upgrades.wizards.spear_knockback,
+                army.wizards.hp,
+                army.wizards.spell_range,
+                army.wizards.aoe_damage,
+                army.wizards.spear_knockback,
             );
             slimes_to_spawn.player_slimes.wizards -= 1;
         }
