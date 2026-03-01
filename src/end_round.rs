@@ -2,11 +2,13 @@ use bevy::prelude::*;
 use rand::Rng;
 
 use crate::animation::{AnimationType, IdleAnimation, VictoryAnimation};
-use crate::movement::{Speed, TargetTransform};
+use crate::armies::create_enemy_army;
+use crate::combat::ActiveAttack;
+use crate::movement::{Speed, TargetEntity, TargetTransform};
 use crate::pick_target::Team;
 use crate::render::Background;
 use crate::setup_round::{Inert, PreGameTimer};
-use crate::spawn_slimes::{SlimeAmounts, SlimeSpawnTimer, SlimesToSpawn};
+use crate::spawn_slimes::{setup_slime_spawn, SlimeSpawnTimer, SlimesToSpawn};
 use crate::{GameFont, GameState};
 
 pub struct EndRoundPlugin;
@@ -181,7 +183,7 @@ fn venture_further_button_system(
     mut commands: Commands,
     query: Query<&Interaction, (Changed<Interaction>, With<VentureFurtherButton>)>,
     ui_query: Query<Entity, With<RoundResultText>>,
-    mut player_slimes: Query<(Entity, &Team, &mut AnimationType, &IdleAnimation)>,
+    mut player_slimes: Query<(Entity, &Team, &mut AnimationType, &IdleAnimation, Has<ChildOf>)>,
     backgrounds: Query<(Entity, &Transform), With<Background>>,
 ) {
     let mut clicked = false;
@@ -202,17 +204,21 @@ fn venture_further_button_system(
 
     // Reposition surviving player slimes to random spots on the left side
     let mut rng = rand::thread_rng();
-    for (entity, team, mut anim_type, idle_anim) in player_slimes.iter_mut() {
+    for (entity, team, mut anim_type, idle_anim, is_child) in player_slimes.iter_mut() {
         if *team != Team::Player {
             continue;
         }
 
-        let x = rng.gen_range(-500.0..-100.0);
-        let y = rng.gen_range(-200.0..200.0);
-        commands
-            .entity(entity)
-            .insert(TargetTransform(Vec3::new(x, y, 0.0)))
-            .insert(Inert);
+        let mut cmds = commands.entity(entity);
+        cmds.insert(Inert)
+            .remove::<(TargetEntity, ActiveAttack)>();
+
+        // Only reposition top-level entities — children use local-space transforms
+        if !is_child {
+            let x = rng.gen_range(-500.0..-100.0);
+            let y = rng.gen_range(-200.0..200.0);
+            cmds.insert(TargetTransform(Vec3::new(x, y, 0.0)));
+        }
 
         *anim_type = idle_anim.0;
     }
@@ -229,23 +235,8 @@ fn venture_further_button_system(
             .insert((TargetTransform(target), Speed(60.0)));
     }
 
-    // Spawn new enemies
-    commands.insert_resource(SlimesToSpawn {
-        player_slimes: SlimeAmounts {
-            normal_slimes: 0,
-            tanks: 0,
-            wizards: 0,
-        },
-        enemy_slimes: SlimeAmounts {
-            normal_slimes: 1,
-            tanks: 10,
-            wizards: 1,
-        },
-    });
-    commands.insert_resource(SlimeSpawnTimer(Timer::from_seconds(
-        0.1,
-        TimerMode::Repeating,
-    )));
+    // Spawn new enemies (no player army — survivors are already on the field)
+    setup_slime_spawn(&mut commands, None, create_enemy_army());
 
     // PreGameTimer removes Inert from all entities when it expires,
     // letting combat begin once enemies finish spawning.

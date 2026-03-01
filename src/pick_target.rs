@@ -42,7 +42,7 @@ pub fn pick_target_system(
         (Entity, &PickTargetStrategy, &Team, &GlobalTransform),
         (Without<TargetEntity>, Without<Inert>, Without<Merging>, Without<Dying>),
     >,
-    potential_targets: Query<(Entity, &Team, &GlobalTransform), With<Health>>,
+    potential_targets: Query<(Entity, &Team, &GlobalTransform), (With<Health>, Without<Dying>)>,
     mut commands: Commands,
 ) {
     let mut rng = rand::thread_rng();
@@ -92,7 +92,7 @@ fn closest_target_system(
         (Entity, &PickTargetStrategy, &Team, &GlobalTransform),
         (Without<Inert>, Without<Merging>, Without<Dying>),
     >,
-    potential_targets: Query<(Entity, &Team, &GlobalTransform), With<Health>>,
+    potential_targets: Query<(Entity, &Team, &GlobalTransform), (With<Health>, Without<Dying>)>,
     mut commands: Commands,
 ) {
     for (entity, strategy, team, transform) in seekers.iter() {

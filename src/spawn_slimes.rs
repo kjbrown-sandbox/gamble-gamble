@@ -3,6 +3,7 @@ use rand::Rng;
 
 use crate::{
     animation::{AnimationType, IdleAnimation, VictoryAnimation},
+    armies::Army,
     combat::{Attack, AttackEffect, BlockChance, KnownAttacks, Shield, TimeBetweenAttacks},
     health::{DeathAnimation, Health},
     movement::{Speed, StaysNearParent},
@@ -17,7 +18,7 @@ pub struct SpawnSlimesPlugin;
 
 impl Plugin for SpawnSlimesPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(GameState::Combat), setup_slime_spawn_system)
+        app.add_systems(OnEnter(GameState::Combat), start_combat_system)
             .add_systems(
                 Update,
                 spawn_slimes_system
@@ -27,100 +28,104 @@ impl Plugin for SpawnSlimesPlugin {
     }
 }
 
-pub(crate) struct SlimeAmounts {
-    pub(crate) normal_slimes: u32,
-    pub(crate) tanks: u32,
-    pub(crate) wizards: u32,
-}
-
 #[derive(Resource)]
 pub struct SlimesToSpawn {
-    pub player_slimes: SlimeAmounts,
-    pub enemy_slimes: SlimeAmounts,
+    pub player_army: Option<Army>,
+    pub enemy_army: Army,
 }
 
 #[derive(Resource)]
 pub struct SlimeSpawnTimer(pub Timer);
 
-fn setup_slime_spawn_system(mut commands: Commands, save_data: Res<SaveData>) {
+/// Queues armies for staggered spawning. Pass `None` for `player_army` when
+/// survivors are already on the field (e.g. venture further).
+pub fn setup_slime_spawn(commands: &mut Commands, player_army: Option<Army>, enemy_army: Army) {
     commands.insert_resource(SlimesToSpawn {
-        player_slimes: SlimeAmounts {
-            normal_slimes: save_data.army.normal.count,
-            tanks: save_data.army.tanks.count,
-            wizards: save_data.army.wizards.count,
-        },
-        enemy_slimes: SlimeAmounts {
-            normal_slimes: 1,
-            tanks: 0,
-            wizards: 0,
-        },
+        player_army,
+        enemy_army,
     });
-
     commands.insert_resource(SlimeSpawnTimer(Timer::from_seconds(
         0.1,
         TimerMode::Repeating,
     )));
 }
 
-// When the timer is ready, spawn a new slime for each team and decrement each team's counter
-// Each slime will need its own state for where it's at in the lerping process
-// Probably need a separate system for the ease in/out
-// Start with just spawning for now
+fn start_combat_system(mut commands: Commands, save_data: Res<SaveData>) {
+    setup_slime_spawn(
+        &mut commands,
+        Some(save_data.army.clone()),
+        crate::armies::create_enemy_army(),
+    );
+}
+
 fn spawn_slimes_system(
     mut commands: Commands,
     mut slimes_to_spawn: ResMut<SlimesToSpawn>,
     mut timer: ResMut<SlimeSpawnTimer>,
     game_time: Res<Time>,
-    save_data: Res<SaveData>,
 ) {
     if timer.0.just_finished() {
-        let army = &save_data.army;
-
-        if slimes_to_spawn.player_slimes.normal_slimes > 0 {
-            spawn_normal_slime(&mut commands, Team::Player, army.normal.hp);
-            slimes_to_spawn.player_slimes.normal_slimes -= 1;
-        } else if slimes_to_spawn.player_slimes.tanks > 0 {
-            spawn_tank_slime(
-                &mut commands,
-                Team::Player,
-                army.tanks.hp,
-                army.tanks.block_chance,
-                army.tanks.stun_chance,
-            );
-            slimes_to_spawn.player_slimes.tanks -= 1;
-        } else if slimes_to_spawn.player_slimes.wizards > 0 {
-            spawn_wizard_slime(
-                &mut commands,
-                Team::Player,
-                army.wizards.hp,
-                army.wizards.spell_range,
-                army.wizards.aoe_damage,
-                army.wizards.spear_knockback,
-            );
-            slimes_to_spawn.player_slimes.wizards -= 1;
+        if let Some(ref mut player) = slimes_to_spawn.player_army {
+            if player.normal.count > 0 {
+                spawn_normal_slime(&mut commands, Team::Player, player.normal.hp);
+                player.normal.count -= 1;
+            } else if player.tanks.count > 0 {
+                spawn_tank_slime(
+                    &mut commands,
+                    Team::Player,
+                    player.tanks.hp,
+                    player.tanks.block_chance,
+                    player.tanks.stun_chance,
+                );
+                player.tanks.count -= 1;
+            } else if player.wizards.count > 0 {
+                spawn_wizard_slime(
+                    &mut commands,
+                    Team::Player,
+                    player.wizards.hp,
+                    player.wizards.spell_range,
+                    player.wizards.aoe_damage,
+                    player.wizards.spear_knockback,
+                );
+                player.wizards.count -= 1;
+            }
         }
 
-        // Enemy spawns keep hardcoded values
-        if slimes_to_spawn.enemy_slimes.normal_slimes > 0 {
-            spawn_normal_slime(&mut commands, Team::Enemy, 5);
-            slimes_to_spawn.enemy_slimes.normal_slimes -= 1;
-        } else if slimes_to_spawn.enemy_slimes.tanks > 0 {
-            spawn_tank_slime(&mut commands, Team::Enemy, 10, 0.2, 0.1);
-            slimes_to_spawn.enemy_slimes.tanks -= 1;
-        } else if slimes_to_spawn.enemy_slimes.wizards > 0 {
-            spawn_wizard_slime(&mut commands, Team::Enemy, 5, 500.0, 1, 200.0);
-            slimes_to_spawn.enemy_slimes.wizards -= 1;
+        let enemy = &mut slimes_to_spawn.enemy_army;
+        if enemy.normal.count > 0 {
+            spawn_normal_slime(&mut commands, Team::Enemy, enemy.normal.hp);
+            enemy.normal.count -= 1;
+        } else if enemy.tanks.count > 0 {
+            spawn_tank_slime(
+                &mut commands,
+                Team::Enemy,
+                enemy.tanks.hp,
+                enemy.tanks.block_chance,
+                enemy.tanks.stun_chance,
+            );
+            enemy.tanks.count -= 1;
+        } else if enemy.wizards.count > 0 {
+            spawn_wizard_slime(
+                &mut commands,
+                Team::Enemy,
+                enemy.wizards.hp,
+                enemy.wizards.spell_range,
+                enemy.wizards.aoe_damage,
+                enemy.wizards.spear_knockback,
+            );
+            enemy.wizards.count -= 1;
         }
     }
 
-    if slimes_to_spawn.player_slimes.normal_slimes
-        + slimes_to_spawn.player_slimes.tanks
-        + slimes_to_spawn.player_slimes.wizards
-        + slimes_to_spawn.enemy_slimes.normal_slimes
-        + slimes_to_spawn.enemy_slimes.tanks
-        + slimes_to_spawn.enemy_slimes.wizards
-        == 0
-    {
+    let player_remaining = slimes_to_spawn
+        .player_army
+        .as_ref()
+        .map(|p| p.normal.count + p.tanks.count + p.wizards.count)
+        .unwrap_or(0);
+    let enemy = &slimes_to_spawn.enemy_army;
+    let enemy_remaining = enemy.normal.count + enemy.tanks.count + enemy.wizards.count;
+
+    if player_remaining + enemy_remaining == 0 {
         commands.remove_resource::<SlimeSpawnTimer>();
         commands.remove_resource::<SlimesToSpawn>();
     }
@@ -210,12 +215,7 @@ fn spawn_tank_slime(
         Team::Enemy => -30.0,
     };
 
-    // Spawn the iceberg shield as a child entity so it moves, flips,
-    // and despawns automatically with the parent slime.
-    // z = 1.0 draws the shield in front of the slime sprite.
     // Override the normal slime's attack with the tank's stun attack.
-    // We remove the old KnownAttacks and insert a new one. The tank hits harder
-    // and stuns 100% of the time for 1.5 seconds, but has no knockback.
     let (attack_anim, _) = match team {
         Team::Player => (AnimationType::SlimeAttack, ()),
         Team::Enemy => (AnimationType::EnemySlimeAttack, ()),
@@ -238,7 +238,6 @@ fn spawn_tank_slime(
         .entity(entity)
         .insert(BlockChance(block_chance))
         .with_child((
-            // Shield marker lets on_block_attack_observer find this specific child
             Shield,
             AnimationType::IcebergIdle,
             Transform::from_xyz(shield_x, -20.0, 1.0).with_scale(Vec3::splat(3.0)),
@@ -288,14 +287,13 @@ fn spawn_wizard_slime(
             AnimationType::FrozenSpearIdle,
             IdleAnimation(AnimationType::FrozenSpearIdle),
             Transform::from_xyz(shield_x, -10.0, 1.0).with_scale(Vec3::splat(4.0)),
-            // ── Combat components — spear fights independently ──
-            team,                        // inherits parent's team so it targets enemies
-            PickTargetStrategy::Closest, // constantly re-evaluates to always hit the nearest enemy
-            Speed(25.0),                 // moves slowly toward its target
-            StaysNearParent(50.0),       // but can't drift more than 50 units from the wizard
+            team,
+            PickTargetStrategy::Closest,
+            Speed(25.0),
+            StaysNearParent(50.0),
             KnownAttacks(vec![Attack {
                 animation: AnimationType::FrozenSpearAttack,
-                hit_frame: 5, // damage lands mid-animation
+                hit_frame: 5,
                 on_hit_effect: AttackEffect {
                     damage: 1,
                     knockback: spear_knockback,
@@ -303,7 +301,7 @@ fn spawn_wizard_slime(
                 },
                 range: 65.0,
             }]),
-            TimeBetweenAttacks(2.0), // 2-second cooldown prevents spamming every frame
+            TimeBetweenAttacks(2.0),
         ));
 
     entity
