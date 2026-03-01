@@ -3,11 +3,8 @@ use std::time;
 use bevy::{prelude::*, state::commands};
 use rand::seq::IteratorRandom;
 
-use crate::health::Dying;
 use crate::movement::TargetEntity;
-use crate::setup_round::Inert;
-use crate::special_abilities::Merging;
-use crate::status::CanBeTargeted;
+use crate::status::{CanBeTargeted, CanTarget};
 use crate::GameState;
 
 pub struct PickTargetPlugin;
@@ -41,7 +38,7 @@ pub fn pick_target_system(
     // For top-level entities, GlobalTransform equals Transform — no change in behavior.
     entities_needing_targets: Query<
         (Entity, &PickTargetStrategy, &Team, &GlobalTransform),
-        (Without<TargetEntity>, Without<Inert>, Without<Merging>, Without<Dying>),
+        (Without<TargetEntity>, With<CanTarget>),
     >,
     potential_targets: Query<(Entity, &Team, &GlobalTransform), With<CanBeTargeted>>,
     mut commands: Commands,
@@ -91,7 +88,7 @@ pub fn pick_target_system(
 fn closest_target_system(
     seekers: Query<
         (Entity, &PickTargetStrategy, &Team, &GlobalTransform),
-        (Without<Inert>, Without<Merging>, Without<Dying>),
+        With<CanTarget>,
     >,
     potential_targets: Query<(Entity, &Team, &GlobalTransform), With<CanBeTargeted>>,
     mut commands: Commands,

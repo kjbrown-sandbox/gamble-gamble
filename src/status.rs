@@ -26,6 +26,7 @@ impl Plugin for StatusPlugin {
                 update_can_be_targeted,
                 update_can_move,
                 update_can_attack,
+                update_can_target,
             )
                 .run_if(in_state(GameState::Combat)),
         );
@@ -53,6 +54,11 @@ pub struct CanMove;
 /// Removed while already attacking, on cooldown, dying, merging, or inert.
 #[derive(Component)]
 pub struct CanAttack;
+
+/// Present when an entity is allowed to acquire or re-evaluate targets.
+/// Removed while inert, merging, or dying.
+#[derive(Component)]
+pub struct CanTarget;
 
 fn update_can_be_moved(
     mut commands: Commands,
@@ -165,5 +171,32 @@ fn update_can_attack(
     }
     for entity in &ineligible {
         commands.entity(entity).remove::<CanAttack>();
+    }
+}
+
+fn update_can_target(
+    mut commands: Commands,
+    eligible: Query<
+        Entity,
+        (
+            Without<CanTarget>,
+            Without<Inert>,
+            Without<Merging>,
+            Without<Dying>,
+        ),
+    >,
+    ineligible: Query<
+        Entity,
+        (
+            With<CanTarget>,
+            Or<(With<Inert>, With<Merging>, With<Dying>)>,
+        ),
+    >,
+) {
+    for entity in &eligible {
+        commands.entity(entity).insert(CanTarget);
+    }
+    for entity in &ineligible {
+        commands.entity(entity).remove::<CanTarget>();
     }
 }
