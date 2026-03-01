@@ -2,13 +2,11 @@ use bevy::prelude::*;
 use rand::Rng;
 
 use crate::animation::{AnimationType, IdleAnimation, VictoryAnimation};
-use crate::audio::GameAudio;
 use crate::movement::{Speed, TargetTransform};
 use crate::pick_target::Team;
 use crate::render::Background;
 use crate::setup_round::{Inert, PreGameTimer};
 use crate::spawn_slimes::{SlimeAmounts, SlimeSpawnTimer, SlimesToSpawn};
-use crate::utils::DespawnAfter;
 use crate::{GameFont, GameState};
 
 pub struct EndRoundPlugin;
@@ -17,18 +15,19 @@ impl Plugin for EndRoundPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnExit(GameState::Combat), cleanup_combat_resources)
             .add_systems(
-            Update,
-            (
-                check_round_end_system.run_if(
-                    not(resource_exists::<RoundResult>)
-                        .and(not(resource_exists::<PreGameTimer>)),
-                ),
-                go_home_button_system.run_if(resource_exists::<RoundResult>),
-                venture_further_button_system.run_if(resource_exists::<RoundResult>),
-                button_hover_system,
-            )
-                .run_if(in_state(GameState::Combat)),
-        );
+                Update,
+                (
+                    check_round_end_system.run_if(
+                        not(resource_exists::<RoundResult>)
+                            .and(not(resource_exists::<PreGameTimer>))
+                            .and(not(resource_exists::<SlimeSpawnTimer>)),
+                    ),
+                    go_home_button_system.run_if(resource_exists::<RoundResult>),
+                    venture_further_button_system.run_if(resource_exists::<RoundResult>),
+                    button_hover_system,
+                )
+                    .run_if(in_state(GameState::Combat)),
+            );
     }
 }
 
@@ -135,7 +134,12 @@ fn check_round_end_system(
         });
 }
 
-fn spawn_button(parent: &mut ChildSpawnerCommands, game_font: &Res<GameFont>, label: &str, marker: impl Component) {
+fn spawn_button(
+    parent: &mut ChildSpawnerCommands,
+    game_font: &Res<GameFont>,
+    label: &str,
+    marker: impl Component,
+) {
     parent
         .spawn((
             marker,
@@ -179,8 +183,6 @@ fn venture_further_button_system(
     ui_query: Query<Entity, With<RoundResultText>>,
     mut player_slimes: Query<(Entity, &Team, &mut AnimationType, &IdleAnimation)>,
     backgrounds: Query<(Entity, &Transform), With<Background>>,
-    game_font: Res<GameFont>,
-    audio: Res<GameAudio>,
 ) {
     let mut clicked = false;
     for interaction in &query {
@@ -218,7 +220,7 @@ fn venture_further_button_system(
     // Scroll background left for a travel illusion
     for (entity, transform) in backgrounds.iter() {
         let target = Vec3::new(
-            transform.translation.x - 200.0,
+            transform.translation.x - 150.0,
             transform.translation.y,
             transform.translation.z,
         );
@@ -240,22 +242,14 @@ fn venture_further_button_system(
             wizards: 1,
         },
     });
-    commands.insert_resource(SlimeSpawnTimer(Timer::from_seconds(0.1, TimerMode::Repeating)));
+    commands.insert_resource(SlimeSpawnTimer(Timer::from_seconds(
+        0.1,
+        TimerMode::Repeating,
+    )));
 
-    // Start the READY/GO sequence
+    // PreGameTimer removes Inert from all entities when it expires,
+    // letting combat begin once enemies finish spawning.
     commands.insert_resource(PreGameTimer(Timer::from_seconds(3.2, TimerMode::Once)));
-    commands.spawn((
-        Text2d::new("READY"),
-        TextFont {
-            font: game_font.0.clone(),
-            font_size: 100.0,
-            ..default()
-        },
-        TextColor(Color::WHITE),
-        Transform::from_xyz(0.0, 25.0, 1.0),
-        DespawnAfter(Timer::from_seconds(3.2, TimerMode::Once)),
-    ));
-    commands.spawn((AudioPlayer::new(audio.ready.clone()),));
 }
 
 fn button_hover_system(
