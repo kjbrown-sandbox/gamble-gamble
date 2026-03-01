@@ -8,8 +8,10 @@
 
 use bevy::prelude::*;
 
+use crate::combat::ActiveAttack;
 use crate::health::{Dying, Health};
 use crate::movement::Knockback;
+use crate::setup_round::Inert;
 use crate::special_abilities::{Merging, PreMerging};
 use crate::GameState;
 
@@ -19,7 +21,7 @@ impl Plugin for StatusPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             PreUpdate,
-            (update_can_be_moved, update_can_be_targeted)
+            (update_can_be_moved, update_can_be_targeted, update_can_move)
                 .run_if(in_state(GameState::Combat)),
         );
     }
@@ -35,6 +37,12 @@ pub struct CanBeMoved;
 /// Removed when the entity has no Health or is Dying.
 #[derive(Component)]
 pub struct CanBeTargeted;
+
+/// Present when an entity can voluntarily move toward a target.
+/// Removed while inert, dying, merging, pre-merging, mid-knockback,
+/// or mid-attack.
+#[derive(Component)]
+pub struct CanMove;
 
 fn update_can_be_moved(
     mut commands: Commands,
@@ -60,6 +68,43 @@ fn update_can_be_moved(
     }
     for entity in &ineligible {
         commands.entity(entity).remove::<CanBeMoved>();
+    }
+}
+
+fn update_can_move(
+    mut commands: Commands,
+    eligible: Query<
+        Entity,
+        (
+            Without<CanMove>,
+            Without<Inert>,
+            Without<PreMerging>,
+            Without<Merging>,
+            Without<Dying>,
+            Without<Knockback>,
+            Without<ActiveAttack>,
+        ),
+    >,
+    ineligible: Query<
+        Entity,
+        (
+            With<CanMove>,
+            Or<(
+                With<Inert>,
+                With<PreMerging>,
+                With<Merging>,
+                With<Dying>,
+                With<Knockback>,
+                With<ActiveAttack>,
+            )>,
+        ),
+    >,
+) {
+    for entity in &eligible {
+        commands.entity(entity).insert(CanMove);
+    }
+    for entity in &ineligible {
+        commands.entity(entity).remove::<CanMove>();
     }
 }
 

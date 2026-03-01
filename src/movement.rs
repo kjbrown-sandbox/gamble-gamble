@@ -5,8 +5,7 @@ use bevy::prelude::*;
 use crate::combat::ActiveAttack;
 use crate::health::{Dying, Health};
 use crate::setup_round::{Inert, StunTimer};
-use crate::special_abilities::{Merging, PreMerging};
-use crate::status::CanBeMoved;
+use crate::status::{CanBeMoved, CanMove};
 use crate::{ArenaBounds, GameState};
 
 pub struct MovementPlugin;
@@ -61,14 +60,7 @@ pub fn move_to_target_system(
             &Speed,
             Option<&StaysNearParent>,
         ),
-        (
-            Without<Inert>,
-            Without<PreMerging>,
-            Without<Merging>,
-            Without<Dying>,
-            Without<Knockback>,    // Don't fight with knockback lerp
-            Without<ActiveAttack>, // Freeze in place while attacking
-        ),
+        With<CanMove>,
     >,
     targets: Query<&GlobalTransform>,
     mut commands: Commands,
@@ -178,10 +170,6 @@ fn knockback_system(
 /// Pushes entities apart when they're within 50 units of each other.
 /// The closer they are, the stronger the push. This prevents units
 /// from stacking on top of each other.
-///
-/// Without<Merging> excludes slimes that are currently walking toward their
-/// merge partner. Without this filter, unsmush would push them apart as they
-/// try to converge, creating a tug-of-war between the two systems.
 pub fn unsmush_system(
     mut query: Query<
         (Entity, &mut Transform),
