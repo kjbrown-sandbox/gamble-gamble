@@ -1,0 +1,57 @@
+// Derived status components.
+//
+// Instead of every system independently filtering on the same set of
+// status-effect components (Merging, Knockback, Inert, …), we compute
+// a handful of "can this entity do X?" markers once per frame and let
+// consumers query a single component.  Adding a new status effect means
+// updating one place here instead of hunting through every system.
+
+use bevy::prelude::*;
+
+use crate::movement::Knockback;
+use crate::special_abilities::{Merging, PreMerging};
+use crate::GameState;
+
+pub struct StatusPlugin;
+
+impl Plugin for StatusPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(
+            PreUpdate,
+            update_can_be_moved.run_if(in_state(GameState::Combat)),
+        );
+    }
+}
+
+/// Present when an entity's position is allowed to be nudged by
+/// external forces (unsmush, etc.).  Removed while merging, pre-merging,
+/// or mid-knockback.
+#[derive(Component)]
+pub struct CanBeMoved;
+
+fn update_can_be_moved(
+    mut commands: Commands,
+    eligible: Query<
+        Entity,
+        (
+            Without<CanBeMoved>,
+            Without<Merging>,
+            Without<PreMerging>,
+            Without<Knockback>,
+        ),
+    >,
+    ineligible: Query<
+        Entity,
+        (
+            With<CanBeMoved>,
+            Or<(With<Merging>, With<PreMerging>, With<Knockback>)>,
+        ),
+    >,
+) {
+    for entity in &eligible {
+        commands.entity(entity).insert(CanBeMoved);
+    }
+    for entity in &ineligible {
+        commands.entity(entity).remove::<CanBeMoved>();
+    }
+}

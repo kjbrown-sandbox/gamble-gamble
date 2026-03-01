@@ -100,6 +100,7 @@ fn main() {
         shaders_lite::ShadersLitePlugin,
         sprite_modifications::SpriteModificationsPlugin,
         home::HomePlugin,
+        status::StatusPlugin,
     ))
     // init_state must come AFTER add_plugins(DefaultPlugins) because DefaultPlugins
     // includes StatesPlugin, which sets up the StateTransition schedule that
@@ -175,4 +176,5 @@ mod shaders_lite;
 mod spawn_slimes;
 mod special_abilities;
 mod sprite_modifications;
+mod status;
 mod utils;

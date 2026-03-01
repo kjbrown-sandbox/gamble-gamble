@@ -6,6 +6,7 @@ use crate::combat::ActiveAttack;
 use crate::health::{Dying, Health};
 use crate::setup_round::{Inert, StunTimer};
 use crate::special_abilities::{Merging, PreMerging};
+use crate::status::CanBeMoved;
 use crate::{ArenaBounds, GameState};
 
 pub struct MovementPlugin;
@@ -184,13 +185,7 @@ fn knockback_system(
 pub fn unsmush_system(
     mut query: Query<
         (Entity, &mut Transform),
-        (
-            With<Sprite>,
-            With<Health>,
-            Without<Merging>,
-            Without<PreMerging>,
-            Without<Knockback>, // Don't push entities that are mid-knockback
-        ),
+        (With<Sprite>, With<Health>, With<CanBeMoved>),
     >,
     time: Res<Time>,
 ) {
