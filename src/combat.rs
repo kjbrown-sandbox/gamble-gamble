@@ -9,8 +9,7 @@ use crate::{
     pick_target::Team,
     setup_round::{Inert, StunTimer},
     shaders_lite::Flash,
-    special_abilities::Merging,
-    status::CanBeTargeted,
+    status::{CanAttack, CanBeTargeted},
     GameFont, GameState,
 };
 
@@ -213,18 +212,12 @@ pub struct BlockedAttackEvent {
 
 // ── Systems ─────────────────────────────────────────────────────────────────
 /// Picks an attack for entities that are in range of their target but not already attacking.
-/// Without<Inert> is added here so stunned entities can't start new attacks.
-/// Inert already blocks movement and target picking — this closes the last gap.
+/// Uses CanAttack (computed in status.rs) which excludes stunned, dying, merging, and
+/// already-attacking entities.
 fn pick_attack_system(
     attackers: Query<
         (Entity, &KnownAttacks, &GlobalTransform, &TargetEntity),
-        (
-            Without<ActiveAttack>,
-            Without<AttackCooldown>, // Entities on cooldown can't start new attacks
-            Without<Dying>,
-            Without<Merging>,
-            Without<Inert>,
-        ),
+        With<CanAttack>,
     >,
     // GlobalTransform gives world-space position. This is critical for child entities
     // (like the frozen spear) whose local Transform is relative to their parent.

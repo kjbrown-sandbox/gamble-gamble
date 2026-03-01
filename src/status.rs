@@ -8,7 +8,7 @@
 
 use bevy::prelude::*;
 
-use crate::combat::ActiveAttack;
+use crate::combat::{ActiveAttack, AttackCooldown};
 use crate::health::{Dying, Health};
 use crate::movement::Knockback;
 use crate::setup_round::Inert;
@@ -21,7 +21,12 @@ impl Plugin for StatusPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             PreUpdate,
-            (update_can_be_moved, update_can_be_targeted, update_can_move)
+            (
+                update_can_be_moved,
+                update_can_be_targeted,
+                update_can_move,
+                update_can_attack,
+            )
                 .run_if(in_state(GameState::Combat)),
         );
     }
@@ -43,6 +48,11 @@ pub struct CanBeTargeted;
 /// or mid-attack.
 #[derive(Component)]
 pub struct CanMove;
+
+/// Present when an entity can start a new attack.
+/// Removed while already attacking, on cooldown, dying, merging, or inert.
+#[derive(Component)]
+pub struct CanAttack;
 
 fn update_can_be_moved(
     mut commands: Commands,
@@ -110,22 +120,50 @@ fn update_can_move(
 
 fn update_can_be_targeted(
     mut commands: Commands,
-    eligible: Query<
-        Entity,
-        (With<Health>, Without<Dying>, Without<CanBeTargeted>),
-    >,
-    ineligible: Query<
-        Entity,
-        (
-            With<CanBeTargeted>,
-            Or<(Without<Health>, With<Dying>)>,
-        ),
-    >,
+    eligible: Query<Entity, (With<Health>, Without<Dying>, Without<CanBeTargeted>)>,
+    ineligible: Query<Entity, (With<CanBeTargeted>, Or<(Without<Health>, With<Dying>)>)>,
 ) {
     for entity in &eligible {
         commands.entity(entity).insert(CanBeTargeted);
     }
     for entity in &ineligible {
         commands.entity(entity).remove::<CanBeTargeted>();
+    }
+}
+
+fn update_can_attack(
+    mut commands: Commands,
+    eligible: Query<
+        Entity,
+        (
+            Without<CanAttack>,
+            Without<ActiveAttack>,
+            Without<AttackCooldown>,
+            Without<Dying>,
+            Without<Merging>,
+            Without<Inert>,
+            Without<Knockback>,
+        ),
+    >,
+    ineligible: Query<
+        Entity,
+        (
+            With<CanAttack>,
+            Or<(
+                With<ActiveAttack>,
+                With<AttackCooldown>,
+                With<Dying>,
+                With<Merging>,
+                With<Inert>,
+                With<Knockback>,
+            )>,
+        ),
+    >,
+) {
+    for entity in &eligible {
+        commands.entity(entity).insert(CanAttack);
+    }
+    for entity in &ineligible {
+        commands.entity(entity).remove::<CanAttack>();
     }
 }
