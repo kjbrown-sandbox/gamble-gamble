@@ -29,30 +29,93 @@ impl Plugin for SaveLoadPlugin {
 /// manual migration code.
 #[derive(Resource, Serialize, Deserialize, Debug, Clone)]
 pub struct SaveData {
-    /// How many of each slime type the player owns.
-    /// #[serde(default)] on each field means old save files that only had
-    /// `slime_count` won't fail to parse — missing fields get their Default
-    /// value (0 for u32) instead of a deserialization error.
-    #[serde(default)]
-    pub normal_slimes: u32,
-    #[serde(default)]
-    pub tanks: u32,
-    #[serde(default)]
-    pub wizards: u32,
+    pub army: Army,
+    pub upgrades: Upgrades,
 }
 
 impl Default for SaveData {
     fn default() -> Self {
         Self {
-            normal_slimes: 5,
+            army: Army::default(),
+            upgrades: Upgrades::default(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Army {
+    pub normal: u32,
+    pub tanks: u32,
+    pub wizards: u32,
+}
+
+impl Default for Army {
+    fn default() -> Self {
+        Self {
+            normal: 1,
             tanks: 0,
             wizards: 0,
         }
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct Upgrades {
+    pub normal: NormalUpgrades,
+    pub tanks: TankUpgrades,
+    pub wizards: WizardUpgrades,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct NormalUpgrades {
+    pub hp: i32,
+}
+
+impl Default for NormalUpgrades {
+    fn default() -> Self {
+        Self { hp: 5 }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TankUpgrades {
+    pub hp: i32,
+    pub block_chance: f32,
+    pub stun_chance: f32,
+}
+
+impl Default for TankUpgrades {
+    fn default() -> Self {
+        Self {
+            hp: 10,
+            block_chance: 0.2,
+            stun_chance: 0.1,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WizardUpgrades {
+    pub hp: i32,
+    pub spell_range: f32,
+    pub aoe_damage: i32,
+    pub spear_knockback: f32,
+}
+
+impl Default for WizardUpgrades {
+    fn default() -> Self {
+        Self {
+            hp: 5,
+            spell_range: 500.0,
+            aoe_damage: 1,
+            spear_knockback: 200.0,
+        }
+    }
+}
+
 // =============================================================================
 // Storage backend: Native (macOS, Linux, Windows)
+
 //
 // #[cfg(...)] is Rust's conditional compilation. The compiler completely excludes
 // code that doesn't match the current target — it's not an if-statement at

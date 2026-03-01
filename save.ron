@@ -1,6 +1,23 @@
-(                                                                                                                                                                                     
-normal_slimes: 1,                             
-tanks: 10,
-wizards: 1,
-)                                                                                                                                                                                     
-           
+(
+    army: (
+        normal: 1,
+        tanks: 10,
+        wizards: 1,
+    ),
+    upgrades: (
+        normal: (
+            hp: 5,
+        ),
+        tanks: (
+            hp: 10,
+            block_chance: 0.2,
+            stun_chance: 0.1,
+        ),
+        wizards: (
+            hp: 5,
+            spell_range: 500.0,
+            aoe_damage: 1,
+            spear_knockback: 200.0,
+        ),
+    ),
+)

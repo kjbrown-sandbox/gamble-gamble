@@ -45,9 +45,9 @@ pub struct SlimeSpawnTimer(pub Timer);
 fn setup_slime_spawn_system(mut commands: Commands, save_data: Res<SaveData>) {
     commands.insert_resource(SlimesToSpawn {
         player_slimes: SlimeAmounts {
-            normal_slimes: save_data.normal_slimes,
-            tanks: save_data.tanks,
-            wizards: save_data.wizards,
+            normal_slimes: save_data.army.normal,
+            tanks: save_data.army.tanks,
+            wizards: save_data.army.wizards,
         },
         enemy_slimes: SlimeAmounts {
             normal_slimes: 1,
@@ -71,19 +71,37 @@ fn spawn_slimes_system(
     mut slimes_to_spawn: ResMut<SlimesToSpawn>,
     mut timer: ResMut<SlimeSpawnTimer>,
     game_time: Res<Time>,
+    save_data: Res<SaveData>,
 ) {
     if timer.0.just_finished() {
+        let upgrades = &save_data.upgrades;
+
+        // Player spawns read stats from save data upgrades
         if slimes_to_spawn.player_slimes.normal_slimes > 0 {
-            spawn_normal_slime(&mut commands, Team::Player, 5);
+            spawn_normal_slime(&mut commands, Team::Player, upgrades.normal.hp);
             slimes_to_spawn.player_slimes.normal_slimes -= 1;
         } else if slimes_to_spawn.player_slimes.tanks > 0 {
-            spawn_tank_slime(&mut commands, Team::Player, 10, 0.2, 0.1);
+            spawn_tank_slime(
+                &mut commands,
+                Team::Player,
+                upgrades.tanks.hp,
+                upgrades.tanks.block_chance,
+                upgrades.tanks.stun_chance,
+            );
             slimes_to_spawn.player_slimes.tanks -= 1;
         } else if slimes_to_spawn.player_slimes.wizards > 0 {
-            spawn_wizard_slime(&mut commands, Team::Player, 5, 500.0, 1, 200.0);
+            spawn_wizard_slime(
+                &mut commands,
+                Team::Player,
+                upgrades.wizards.hp,
+                upgrades.wizards.spell_range,
+                upgrades.wizards.aoe_damage,
+                upgrades.wizards.spear_knockback,
+            );
             slimes_to_spawn.player_slimes.wizards -= 1;
         }
 
+        // Enemy spawns keep hardcoded values
         if slimes_to_spawn.enemy_slimes.normal_slimes > 0 {
             spawn_normal_slime(&mut commands, Team::Enemy, 5);
             slimes_to_spawn.enemy_slimes.normal_slimes -= 1;
