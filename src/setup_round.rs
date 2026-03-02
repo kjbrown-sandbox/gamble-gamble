@@ -8,7 +8,7 @@ use crate::{
     combat::{FloatingText, IceImpactVfx},
     render::{self, Vignette},
     utils::DespawnAfter,
-    ArenaBounds, GameFont, GameState,
+    ArenaBounds, CombatState, GameFont, GameState,
 };
 
 pub struct SetupRoundPlugin;
@@ -16,19 +16,19 @@ pub struct SetupRoundPlugin;
 impl Plugin for SetupRoundPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, leave_initial_loading)
+            .add_systems(OnEnter(GameState::Combat), setup_combat_arena)
+            .add_systems(OnEnter(CombatState::PreCombat), start_pre_game_timer)
             .add_systems(
-                OnEnter(GameState::Combat),
-                (start_pre_game_timer, setup_combat_arena),
+                Update,
+                pre_game_timer_system
+                    .run_if(resource_exists::<PreGameTimer>)
+                    .run_if(in_state(CombatState::PreCombat)),
             )
             .add_systems(
-            Update,
-            (
-                pre_game_timer_system.run_if(resource_exists::<PreGameTimer>),
-                stun_timer_system,
-                on_add_stun_system,
-            )
-                .run_if(in_state(GameState::Combat)),
-        );
+                Update,
+                (stun_timer_system, on_add_stun_system)
+                    .run_if(in_state(CombatState::DuringCombat)),
+            );
     }
 }
 
@@ -67,16 +67,15 @@ fn pre_game_timer_system(
     inert_entities: Query<Entity, With<Inert>>,
     game_font: Res<GameFont>,
     audio: Res<GameAudio>,
+    mut next_state: ResMut<NextState<CombatState>>,
 ) {
     timer.0.tick(time.delta());
 
     if timer.0.just_finished() {
-        // Remove Inert from every entity that has it
         for entity in &inert_entities {
             commands.entity(entity).remove::<Inert>();
         }
 
-        // Timer's job is done — remove the resource so this system stops running
         commands.remove_resource::<PreGameTimer>();
 
         commands.spawn((
@@ -92,6 +91,8 @@ fn pre_game_timer_system(
         ));
 
         commands.spawn((AudioPlayer::new(audio.go.clone()),));
+
+        next_state.set(CombatState::DuringCombat);
     }
 }
 

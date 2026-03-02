@@ -13,6 +13,23 @@ pub enum GameState {
     Combat,
 }
 
+/// SubState of Combat that tracks the current phase of a combat round.
+/// Only exists while GameState == Combat. Bevy automatically creates it
+/// on enter and destroys it on exit.
+///
+/// - PreCombat: countdown timer, slimes are Inert
+/// - DuringCombat: systems run, slimes fight
+/// - PostCombat: result UI shown, player decides next action
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, SubStates)]
+#[source(GameState = GameState::Combat)]
+#[states(scoped_entities)]
+pub enum CombatState {
+    #[default]
+    PreCombat,
+    DuringCombat,
+    PostCombat,
+}
+
 #[derive(Resource)]
 pub struct ArenaBounds {
     pub width: f32,
@@ -107,6 +124,7 @@ fn main() {
     // init_state depends on. Without StatesPlugin, there's no infrastructure
     // for tracking state changes, running OnEnter/OnExit, or evaluating in_state().
     .init_state::<GameState>()
+    .add_sub_state::<CombatState>()
     .add_systems(PreStartup, load_game_font)
     .add_systems(Startup, spawn_camera)
     .add_systems(

@@ -5,7 +5,7 @@ use rand::seq::IteratorRandom;
 
 use crate::movement::TargetEntity;
 use crate::status::{CanBeTargeted, CanTarget};
-use crate::GameState;
+use crate::CombatState;
 
 pub struct PickTargetPlugin;
 
@@ -13,7 +13,8 @@ impl Plugin for PickTargetPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            (pick_target_system, closest_target_system).run_if(in_state(GameState::Combat)),
+            (pick_target_system, closest_target_system)
+                .run_if(in_state(CombatState::DuringCombat)),
         );
     }
 }

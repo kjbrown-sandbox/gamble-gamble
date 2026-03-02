@@ -10,7 +10,7 @@ use crate::{
     setup_round::{Inert, StunTimer},
     shaders_lite::Flash,
     status::{CanAttack, CanBeTargeted},
-    GameFont, GameState,
+    CombatState, GameFont, GameState,
 };
 
 pub struct CombatPlugin;
@@ -40,20 +40,23 @@ impl Plugin for CombatPlugin {
                 attack_cleanup_system,
             )
                 .chain()
-                .run_if(in_state(GameState::Combat)),
+                .run_if(in_state(CombatState::DuringCombat)),
         );
 
-        // attack_cooldown_system runs independently — it just ticks cooldown timers
-        // and removes them when they expire. No ordering dependency on the combat chain.
         app.add_systems(
             Update,
             (
                 ice_vfx_cleanup_system,
                 attack_cooldown_system,
                 shield_scale_punch_system,
-                floating_text_system,
             )
-                .run_if(in_state(GameState::Combat)),
+                .run_if(in_state(CombatState::DuringCombat)),
+        );
+
+        // Floating text can linger across phase transitions
+        app.add_systems(
+            Update,
+            floating_text_system.run_if(in_state(GameState::Combat)),
         );
     }
 }

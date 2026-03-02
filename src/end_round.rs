@@ -3,42 +3,42 @@ use rand::Rng;
 
 use crate::animation::{AnimationType, IdleAnimation, VictoryAnimation};
 use crate::armies::create_enemy_army;
-use crate::combat::ActiveAttack;
-use crate::movement::{Speed, TargetEntity, TargetTransform};
+use crate::combat::{ActiveAttack, AttackCooldown};
+use crate::movement::{Knockback, Speed, TargetEntity, TargetTransform};
 use crate::pick_target::Team;
 use crate::render::Background;
-use crate::setup_round::{Inert, PreGameTimer};
+use crate::setup_round::{Inert, PreGameTimer, StunTimer};
 use crate::spawn_slimes::{setup_slime_spawn, SlimeSpawnTimer, SlimesToSpawn};
-use crate::{GameFont, GameState};
+use crate::special_abilities::{Merging, PreMerging};
+use crate::{CombatState, GameFont, GameState};
 
 pub struct EndRoundPlugin;
 
 impl Plugin for EndRoundPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnExit(GameState::Combat), cleanup_combat_resources)
+            .add_systems(OnEnter(CombatState::PostCombat), enter_post_combat)
+            .add_systems(
+                Update,
+                check_round_end_system.run_if(in_state(CombatState::DuringCombat)),
+            )
             .add_systems(
                 Update,
                 (
-                    check_round_end_system.run_if(
-                        not(resource_exists::<RoundResult>)
-                            .and(not(resource_exists::<PreGameTimer>))
-                            .and(not(resource_exists::<SlimeSpawnTimer>)),
-                    ),
-                    go_home_button_system.run_if(resource_exists::<RoundResult>),
-                    venture_further_button_system.run_if(resource_exists::<RoundResult>),
+                    go_home_button_system,
+                    venture_further_button_system,
                     button_hover_system,
                 )
-                    .run_if(in_state(GameState::Combat)),
+                    .run_if(in_state(CombatState::PostCombat)),
             );
     }
 }
 
-/// Resource inserted once a winner is determined, preventing further checks.
-#[derive(Resource)]
-pub struct RoundResult;
-
-#[derive(Component)]
-struct RoundResultText;
+#[derive(Resource, PartialEq)]
+pub enum RoundResult {
+    Victory,
+    Defeat,
+}
 
 #[derive(Component)]
 struct GoHomeButton;
@@ -50,12 +50,8 @@ const BUTTON_COLOR: Color = Color::srgb(0.2, 0.2, 0.2);
 const BUTTON_HOVER_COLOR: Color = Color::srgb(0.35, 0.35, 0.35);
 const BUTTON_PRESSED_COLOR: Color = Color::srgb(0.15, 0.15, 0.15);
 
-fn check_round_end_system(
-    mut commands: Commands,
-    teams: Query<&Team>,
-    mut survivors: Query<(&mut AnimationType, &VictoryAnimation, &Team)>,
-    game_font: Res<GameFont>,
-) {
+/// Checks if one team has been eliminated. If so, transitions to PostCombat.
+fn check_round_end_system(teams: Query<&Team>, mut next_state: ResMut<NextState<CombatState>>) {
     let mut has_player = false;
     let mut has_enemy = false;
 
@@ -69,36 +65,55 @@ fn check_round_end_system(
         }
     }
 
-    let message = if has_player && !has_enemy {
-        "VICTORY!"
-    } else {
-        "DEFEAT!"
-    };
+    next_state.set(CombatState::PostCombat);
+}
 
-    commands.insert_resource(RoundResult);
+/// Runs once when entering PostCombat. Determines the winner, plays victory
+/// animations, marks all survivors as Inert, strips combat components, and
+/// spawns the result UI.
+fn enter_post_combat(
+    mut commands: Commands,
+    teams: Query<&Team>,
+    mut survivors: Query<(Entity, &mut AnimationType, &VictoryAnimation, &Team)>,
+    game_font: Res<GameFont>,
+) {
+    let mut has_player = false;
+    let mut has_enemy = false;
 
-    let winning_team = if has_player {
-        Some(Team::Player)
-    } else if has_enemy {
-        Some(Team::Enemy)
-    } else {
-        None
-    };
-
-    if let Some(winner) = winning_team {
-        for (mut anim_type, victory_anim, team) in survivors.iter_mut() {
-            if *team == winner {
-                *anim_type = victory_anim.0;
-            }
+    for team in &teams {
+        match team {
+            Team::Player => has_player = true,
+            Team::Enemy => has_enemy = true,
         }
     }
 
-    let is_victory = has_player && !has_enemy;
+    let (result, message) = if has_player && !has_enemy {
+        (RoundResult::Victory, "VICTORY!")
+    } else {
+        (RoundResult::Defeat, "DEFEAT!")
+    };
 
+    let is_victory = result == RoundResult::Victory;
+    commands.insert_resource(result);
+
+    for (entity, mut anim_type, victory_anim, _team) in survivors.iter_mut() {
+        *anim_type = victory_anim.0;
+
+        commands.entity(entity).insert(Inert).remove::<(
+            StunTimer,
+            TargetEntity,
+            ActiveAttack,
+            AttackCooldown,
+            Knockback,
+            PreMerging,
+            Merging,
+        )>();
+    }
+
+    // Spawn result UI — DespawnOnExit(CombatState::PostCombat) auto-cleans it
     commands
         .spawn((
-            RoundResultText,
-            DespawnOnExit(GameState::Combat),
+            DespawnOnExit(CombatState::PostCombat),
             Node {
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
@@ -179,12 +194,22 @@ fn go_home_button_system(
     }
 }
 
+/// When the player clicks "Venture Further", reposition survivors, spawn new
+/// enemies, and transition back to PreCombat. The UI is auto-despawned by
+/// DespawnOnExit(CombatState::PostCombat), and OnEnter(PreCombat) handles
+/// the countdown timer.
 fn venture_further_button_system(
     mut commands: Commands,
     query: Query<&Interaction, (Changed<Interaction>, With<VentureFurtherButton>)>,
-    ui_query: Query<Entity, With<RoundResultText>>,
-    mut player_slimes: Query<(Entity, &Team, &mut AnimationType, &IdleAnimation, Has<ChildOf>)>,
+    mut player_slimes: Query<(
+        Entity,
+        &Team,
+        &mut AnimationType,
+        &IdleAnimation,
+        Has<ChildOf>,
+    )>,
     backgrounds: Query<(Entity, &Transform), With<Background>>,
+    mut next_state: ResMut<NextState<CombatState>>,
 ) {
     let mut clicked = false;
     for interaction in &query {
@@ -196,12 +221,6 @@ fn venture_further_button_system(
         return;
     }
 
-    // Despawn end-round UI
-    for entity in &ui_query {
-        commands.entity(entity).despawn();
-    }
-    commands.remove_resource::<RoundResult>();
-
     // Reposition surviving player slimes to random spots on the left side
     let mut rng = rand::thread_rng();
     for (entity, team, mut anim_type, idle_anim, is_child) in player_slimes.iter_mut() {
@@ -209,15 +228,13 @@ fn venture_further_button_system(
             continue;
         }
 
-        let mut cmds = commands.entity(entity);
-        cmds.insert(Inert)
-            .remove::<(TargetEntity, ActiveAttack)>();
-
         // Only reposition top-level entities — children use local-space transforms
         if !is_child {
             let x = rng.gen_range(-500.0..-100.0);
             let y = rng.gen_range(-200.0..200.0);
-            cmds.insert(TargetTransform(Vec3::new(x, y, 0.0)));
+            commands
+                .entity(entity)
+                .insert(TargetTransform(Vec3::new(x, y, 0.0)));
         }
 
         *anim_type = idle_anim.0;
@@ -238,9 +255,7 @@ fn venture_further_button_system(
     // Spawn new enemies (no player army — survivors are already on the field)
     setup_slime_spawn(&mut commands, None, create_enemy_army());
 
-    // PreGameTimer removes Inert from all entities when it expires,
-    // letting combat begin once enemies finish spawning.
-    commands.insert_resource(PreGameTimer(Timer::from_seconds(3.2, TimerMode::Once)));
+    next_state.set(CombatState::PreCombat);
 }
 
 fn button_hover_system(
@@ -255,7 +270,6 @@ fn button_hover_system(
     }
 }
 
-/// Removes combat-only resources when leaving the Combat state.
 fn cleanup_combat_resources(mut commands: Commands) {
     commands.remove_resource::<RoundResult>();
     commands.remove_resource::<PreGameTimer>();

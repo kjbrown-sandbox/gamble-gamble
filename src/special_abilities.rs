@@ -9,7 +9,7 @@ use crate::{
     movement::{Speed, TargetEntity},
     pick_target::{PickTargetStrategy, Team},
     setup_round::Inert,
-    GameFont, GameState,
+    CombatState, GameFont, GameState,
 };
 
 pub struct SpecialAbilitiesPlugin;
@@ -40,7 +40,7 @@ impl Plugin for SpecialAbilitiesPlugin {
                 cancel_merge_system,
             )
                 .chain()
-                .run_if(in_state(GameState::Combat)),
+                .run_if(in_state(CombatState::DuringCombat)),
         );
     }
 }
