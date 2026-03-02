@@ -37,26 +37,24 @@ impl Plugin for CombatPlugin {
                 pick_attack_system,
                 attack_system,
                 hit_frame_check_system,
-                attack_cleanup_system,
             )
                 .chain()
                 .run_if(in_state(CombatState::DuringCombat)),
         );
 
+        // Cleanup and visual-finish systems run across all combat phases so
+        // in-progress effects (ice traps, shield punches, attack animations)
+        // can complete even after transitioning to PostCombat.
         app.add_systems(
             Update,
             (
-                ice_vfx_cleanup_system,
+                attack_cleanup_system,
                 attack_cooldown_system,
+                ice_vfx_cleanup_system,
                 shield_scale_punch_system,
+                floating_text_system,
             )
-                .run_if(in_state(CombatState::DuringCombat)),
-        );
-
-        // Floating text can linger across phase transitions
-        app.add_systems(
-            Update,
-            floating_text_system.run_if(in_state(GameState::Combat)),
+                .run_if(in_state(GameState::Combat)),
         );
     }
 }
