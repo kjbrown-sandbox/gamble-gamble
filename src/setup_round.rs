@@ -181,16 +181,37 @@ fn setup_combat_arena(
     asset_server: Res<AssetServer>,
     mut images: ResMut<Assets<Image>>,
 ) {
+    // Each background tile is 1200 * 3.0 scale = 3600px wide.
+    // Position the first tile's left edge at the visible left (-600),
+    // and the second tile immediately to its right. This gives ~40
+    // "Venture Further" scrolls (150px each) before running out.
+    let bg_image = asset_server.load("backgrounds/personal-stones.png");
+    let tile_width = arena.width * 3.0; // 3600px per tile
+    let first_center_x = -arena.half_width() + tile_width / 2.0;
+
     commands.spawn((
         DespawnOnExit(GameState::Combat),
         render::Background,
         Sprite {
-            image: asset_server.load("backgrounds/personal-stones.png"),
+            image: bg_image.clone(),
             custom_size: Some(Vec2::new(arena.width, arena.height)),
             color: Color::srgba(1.0, 1.0, 1.0, 0.05),
             ..default()
         },
-        Transform::from_xyz(0.0, 0.0, -10.0).with_scale(Vec3::splat(3.0)),
+        Transform::from_xyz(first_center_x, 0.0, -10.0).with_scale(Vec3::splat(3.0)),
+    ));
+
+    commands.spawn((
+        DespawnOnExit(GameState::Combat),
+        render::Background,
+        Sprite {
+            image: bg_image,
+            custom_size: Some(Vec2::new(arena.width, arena.height)),
+            color: Color::srgba(1.0, 1.0, 1.0, 0.05),
+            ..default()
+        },
+        Transform::from_xyz(first_center_x + tile_width, 0.0, -10.0)
+            .with_scale(Vec3::splat(3.0)),
     ));
 
     let vignette_height: u32 = 64;
