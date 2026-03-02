@@ -26,6 +26,7 @@ pub struct GameAudio {
     pub ice_trap: Handle<AudioSource>,
     pub ready: Handle<AudioSource>,
     pub go: Handle<AudioSource>,
+    pub miss: Handle<AudioSource>,
 }
 
 fn start_background_music(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -55,6 +56,7 @@ pub fn setup_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
     let ready_sound = asset_server.load("audio/pixabay/u_xmiiqyhi46-gamestart-272829.mp3");
     let go_sound =
         asset_server.load("audio/pixabay/freesound_community-pixel-sound-effect-4-82881.mp3");
+    let miss_sound = asset_server.load("audio/Swordswing.wav");
 
     commands.insert_resource(GameAudio {
         slime_damage: damage_sound,
@@ -66,5 +68,6 @@ pub fn setup_audio(mut commands: Commands, asset_server: Res<AssetServer>) {
         ice_trap: ice_trap_sound,
         ready: ready_sound,
         go: go_sound,
+        miss: miss_sound,
     });
 }

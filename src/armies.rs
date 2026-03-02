@@ -78,7 +78,7 @@ impl Default for WizardSlime {
 
 pub fn create_enemy_army() -> Army {
     Army {
-        normal: NormalSlime { count: 1, hp: 5 },
+        normal: NormalSlime { count: 5, hp: 5 },
         tanks: TankSlime {
             count: 0,
             ..Default::default()

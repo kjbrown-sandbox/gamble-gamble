@@ -293,7 +293,7 @@ fn spawn_wizard_slime(
             StaysNearParent(50.0),
             KnownAttacks(vec![Attack {
                 animation: AnimationType::FrozenSpearAttack,
-                hit_frame: 5,
+                hit_frame: 4,
                 on_hit_effect: AttackEffect {
                     damage: 1,
                     knockback: spear_knockback,

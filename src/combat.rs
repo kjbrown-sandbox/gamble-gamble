@@ -33,11 +33,7 @@ impl Plugin for CombatPlugin {
         // Without .chain(), Bevy could run them in any order (or even in parallel).
         app.add_systems(
             Update,
-            (
-                pick_attack_system,
-                attack_system,
-                hit_frame_check_system,
-            )
+            (pick_attack_system, attack_system, hit_frame_check_system)
                 .chain()
                 .run_if(in_state(CombatState::DuringCombat)),
         );
@@ -216,10 +212,7 @@ pub struct BlockedAttackEvent {
 /// Uses CanAttack (computed in status.rs) which excludes stunned, dying, merging, and
 /// already-attacking entities.
 fn pick_attack_system(
-    attackers: Query<
-        (Entity, &KnownAttacks, &GlobalTransform, &TargetEntity),
-        With<CanAttack>,
-    >,
+    attackers: Query<(Entity, &KnownAttacks, &GlobalTransform, &TargetEntity), With<CanAttack>>,
     // GlobalTransform gives world-space position. This is critical for child entities
     // (like the frozen spear) whose local Transform is relative to their parent.
     // For top-level entities, GlobalTransform == Transform, so nothing changes for them.
@@ -264,25 +257,61 @@ fn attack_system(mut query: Query<(&ActiveAttack, &mut AnimationType), Added<Act
 }
 
 /// Checks if the current animation frame has reached the attack's "hit frame."
-/// This is how we sync damage with the visual — the slime's attack animation
-/// might show a slam on frame 3, so we fire the hit event on frame 3.
+/// If the target has moved beyond attack range + 10 by the hit frame,
+/// the attack misses — no damage, just a "MISS!" text and whoosh sound.
 fn hit_frame_check_system(
-    mut query: Query<(Entity, &mut ActiveAttack, &AnimationState), Without<Dying>>,
+    mut query: Query<
+        (Entity, &mut ActiveAttack, &AnimationState, &GlobalTransform),
+        Without<Dying>,
+    >,
+    targets: Query<&GlobalTransform>,
+    game_font: Res<GameFont>,
+    audio: Res<GameAudio>,
     mut commands: Commands,
 ) {
-    for (entity, mut active_attack, anim_state) in query.iter_mut() {
+    for (entity, mut active_attack, anim_state, attacker_transform) in query.iter_mut() {
         if anim_state.frame_index >= active_attack.attack.hit_frame && !active_attack.hit_triggered
         {
-            // Trigger the event — on_hit_observer will run immediately and apply damage.
-            // commands.trigger() fires a "global" event that any registered observer can react to.
-            commands.trigger(OnHitEvent {
-                attacker: entity,
-                target: active_attack.target,
-                effect: active_attack.attack.on_hit_effect.clone(),
-            });
-            // Mark as triggered so we don't fire duplicate events
-            // on subsequent frames while frame_index is still >= hit_frame.
             active_attack.hit_triggered = true;
+
+            // Check if target is still in range. If it moved away mid-attack, miss.
+            let missed = targets
+                .get(active_attack.target)
+                .map(|target_transform| {
+                    let distance = attacker_transform
+                        .translation()
+                        .distance(target_transform.translation());
+                    distance > active_attack.attack.range + 15.0
+                })
+                .unwrap_or(false);
+
+            if missed {
+                let pos = targets
+                    .get(active_attack.target)
+                    .map(|t| t.translation())
+                    .unwrap_or(attacker_transform.translation());
+                commands.spawn((
+                    FloatingText(Timer::from_seconds(0.8, TimerMode::Once)),
+                    Text2d::new("MISS!"),
+                    TextFont {
+                        font: game_font.0.clone(),
+                        font_size: 18.0,
+                        ..default()
+                    },
+                    TextColor(Color::WHITE),
+                    Transform::from_xyz(pos.x, pos.y + 20.0, 10.0),
+                ));
+                commands.spawn((
+                    AudioPlayer::new(audio.miss.clone()),
+                    PlaybackSettings::DESPAWN.with_volume(Volume::Linear(0.5)),
+                ));
+            } else {
+                commands.trigger(OnHitEvent {
+                    attacker: entity,
+                    target: active_attack.target,
+                    effect: active_attack.attack.on_hit_effect.clone(),
+                })
+            };
         }
     }
 }
