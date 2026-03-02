@@ -66,6 +66,7 @@ fn update_can_be_moved(
         Entity,
         (
             Without<CanBeMoved>,
+            Without<Inert>,
             Without<Merging>,
             Without<PreMerging>,
             Without<Knockback>,
@@ -75,7 +76,7 @@ fn update_can_be_moved(
         Entity,
         (
             With<CanBeMoved>,
-            Or<(With<Merging>, With<PreMerging>, With<Knockback>)>,
+            Or<(With<Inert>, With<Merging>, With<PreMerging>, With<Knockback>)>,
         ),
     >,
 ) {

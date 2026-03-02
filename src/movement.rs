@@ -6,7 +6,7 @@ use crate::combat::ActiveAttack;
 use crate::health::{Dying, Health};
 use crate::setup_round::{Inert, StunTimer};
 use crate::status::{CanBeMoved, CanMove};
-use crate::{ArenaBounds, CombatState, GameState};
+use crate::{ArenaBounds, GameState};
 
 pub struct MovementPlugin;
 
@@ -14,13 +14,9 @@ impl Plugin for MovementPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(
             Update,
-            move_to_target_system.run_if(in_state(CombatState::DuringCombat)),
-        );
-
-        app.add_systems(
-            Update,
             (
                 knockback_system,
+                move_to_target_system,
                 move_to_target_transform_system,
                 unsmush_system,
                 out_of_bounds_system,
