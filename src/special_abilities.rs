@@ -2,15 +2,15 @@ use bevy::{audio::Volume, prelude::*};
 use rand::Rng;
 
 use crate::{
-    animation::{AnimationState, AnimationType, IdleAnimation, SpriteSheets, VictoryAnimation},
+    animation::{AnimationState, AnimationType, IdleAnimation, SpriteSheets},
     audio::GameAudio,
-    combat::{ActiveAttack, Attack, AttackEffect, KnownAttacks},
-    health::{DeathAnimation, Dying, Health},
+    combat::ActiveAttack,
+    health::{Dying, Health},
     movement::{Speed, TargetEntity},
-    pick_target::{PickTargetStrategy, Team},
+    pick_target::Team,
     setup_round::Inert,
-    spawn_slimes::GoopValue,
-    CombatState, GameFont, GameState,
+    spawn_slimes::spawn_merged_slime,
+    CombatState, GameFont,
 };
 
 pub struct SpecialAbilitiesPlugin;
@@ -400,81 +400,20 @@ fn execute_merge_system(
         // the already_merged check prevents processing the partner again.
         commands.spawn(AudioPlayer::new(audio.merge_complete.clone()));
 
-        // Merge! Despawn both originals and spawn the new merged slime.
         let midpoint = (transform.translation + partner_transform.translation) / 2.0;
 
-        // Mark both as processed so we don't try to merge them again
         already_merged.push(entity);
         already_merged.push(partner_entity);
 
         commands.entity(entity).despawn();
         commands.entity(partner_entity).despawn();
 
-        // The merged slime's scale depends on team — player slimes are 1x normally
-        // (so 2x merged), enemy slimes are 2x normally (so 4x merged).
-        // let merged_scale = match team {
-        //     Team::Player => 2.0,
-        //     Team::Enemy => 4.0,
-        // };
-        let merged_scale = 2.0;
-
-        // Spawn the merged slime with boosted stats.
-        // Uses "BigSlime" animation variants — these use the same sprite sheets as
-        // normal slimes but with 0.3s frame duration (3x slower). This makes the
-        // merged slime look heavy and lumbering. The slower attack animation also
-        // inherently makes the attack cycle ~3x longer.
-        //
-        // No SpriteModification (the spawn scale animation targets 1.0, which would
-        // fight our 2x scale). No Inert either — it spawns ready to fight.
-        // Pick the correct big slime animation variants based on team
-        let (big_idle, big_attack, big_death, big_victory) = match team {
-            Team::Player => (
-                AnimationType::BigSlimeJumpIdle,
-                AnimationType::BigSlimeAttack,
-                AnimationType::BigSlimeDeath,
-                AnimationType::BigSlimeJumpIdle,
-            ),
-            Team::Enemy => (
-                AnimationType::EnemyBigSlimeJumpIdle,
-                AnimationType::EnemyBigSlimeAttack,
-                AnimationType::EnemyBigSlimeDeath,
-                AnimationType::EnemyBigSlimeJumpIdle,
-            ),
-        };
-
-        let merged = commands
-            .spawn((
-                DespawnOnExit(GameState::Combat),
-                big_idle,
-                IdleAnimation(big_idle),
-                VictoryAnimation(big_victory),
-                Transform::from_translation(midpoint).with_scale(Vec3::splat(merged_scale)),
-                *team,
-                PickTargetStrategy::Close,
-                DeathAnimation(big_death),
-                // 4x health of a normal slime (normal = 10)
-                Health(40),
-                // Same movement speed — the "lumbering" look comes from the slower animation
-                Speed(125.0),
-                // 4x damage of a normal slime (normal = 2), same range
-                KnownAttacks(vec![Attack {
-                    animation: big_attack,
-                    hit_frame: 3,
-                    on_hit_effect: AttackEffect {
-                        damage: 8,
-                        knockback: 0.0,
-                        ..Default::default()
-                    },
-                    range: 100.0,
-                }]),
-                // Permanent marker — prevents this slime from merging again
-                MergedSlime,
-            ))
-            .id();
-
-        if *team == Team::Enemy {
-            commands.entity(merged).insert(GoopValue(5));
-        }
+        // Merged slimes from combat merges spawn ready to fight — remove Inert
+        // and the spawn-scale animation that spawn_merged_slime adds by default.
+        let merged = spawn_merged_slime(&mut commands, *team, Some(midpoint));
+        commands
+            .entity(merged)
+            .remove::<(Inert, crate::sprite_modifications::SpriteModification)>();
     }
 }
 

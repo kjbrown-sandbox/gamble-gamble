@@ -47,6 +47,9 @@ pub enum RoundResult {
 #[derive(Resource, Default)]
 pub struct GoopEarned(pub u32);
 
+#[derive(Resource)]
+pub struct CombatLevel(pub u32);
+
 #[derive(Component)]
 struct GoHomeButton;
 
@@ -59,6 +62,7 @@ const BUTTON_PRESSED_COLOR: Color = Color::srgb(0.15, 0.15, 0.15);
 
 fn init_goop_earned(mut commands: Commands) {
     commands.insert_resource(GoopEarned(0));
+    commands.insert_resource(CombatLevel(1));
 }
 
 fn accumulate_goop_system(
@@ -235,6 +239,7 @@ fn venture_further_button_system(
     )>,
     backgrounds: Query<(Entity, &Transform), With<Background>>,
     mut next_state: ResMut<NextState<CombatState>>,
+    mut combat_level: ResMut<CombatLevel>,
 ) {
     let mut clicked = false;
     for interaction in &query {
@@ -277,8 +282,8 @@ fn venture_further_button_system(
             .insert((TargetTransform(target), Speed(60.0)));
     }
 
-    // Spawn new enemies (no player army — survivors are already on the field)
-    setup_slime_spawn(&mut commands, None, create_enemy_army());
+    combat_level.0 += 1;
+    setup_slime_spawn(&mut commands, None, create_enemy_army(combat_level.0));
 
     next_state.set(CombatState::PreCombat);
 }
@@ -301,4 +306,5 @@ fn cleanup_combat_resources(mut commands: Commands) {
     commands.remove_resource::<SlimeSpawnTimer>();
     commands.remove_resource::<SlimesToSpawn>();
     commands.remove_resource::<GoopEarned>();
+    commands.remove_resource::<CombatLevel>();
 }

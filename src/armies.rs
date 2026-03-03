@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 pub struct ArmiesPlugin;
@@ -76,16 +77,51 @@ impl Default for WizardSlime {
     }
 }
 
-pub fn create_enemy_army() -> Army {
-    Army {
-        normal: NormalSlime { count: 5, hp: 5 },
-        tanks: TankSlime {
-            count: 0,
-            ..Default::default()
+/// Describes an enemy wave: normal army units plus any pre-made merged slimes.
+/// Merged slimes are tracked separately because they bypass the normal Army
+/// spawn logic — they use a different spawn function with BigSlime animations.
+pub struct EnemyWave {
+    pub army: Army,
+    pub merged_count: u32,
+}
+
+pub fn create_enemy_army(level: u32) -> EnemyWave {
+    let mut rng = rand::thread_rng();
+
+    match level {
+        1..=5 => EnemyWave {
+            army: Army {
+                normal: NormalSlime {
+                    count: 1,
+                    hp: rng.gen_range(4..=6),
+                },
+                ..Default::default()
+            },
+            merged_count: 0,
         },
-        wizards: WizardSlime {
-            count: 0,
-            ..Default::default()
+        6..=9 => EnemyWave {
+            army: Army {
+                normal: NormalSlime {
+                    count: rng.gen_range(1..=2),
+                    hp: rng.gen_range(4..=6),
+                },
+                ..Default::default()
+            },
+            merged_count: 0,
+        },
+        10 => EnemyWave {
+            army: Army {
+                normal: NormalSlime { count: 0, hp: 5 },
+                ..Default::default()
+            },
+            merged_count: 1,
+        },
+        _ => EnemyWave {
+            army: Army {
+                normal: NormalSlime { count: 1, hp: 5 },
+                ..Default::default()
+            },
+            merged_count: 0,
         },
     }
 }

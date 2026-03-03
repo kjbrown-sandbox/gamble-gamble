@@ -3,13 +3,14 @@ use rand::Rng;
 
 use crate::{
     animation::{AnimationType, IdleAnimation, VictoryAnimation},
-    armies::Army,
+    armies::{Army, EnemyWave},
     combat::{Attack, AttackEffect, BlockChance, KnownAttacks, Shield, TimeBetweenAttacks},
     health::{DeathAnimation, Health},
     movement::{Speed, StaysNearParent},
     pick_target::{PickTargetStrategy, Team},
     save_load::SaveData,
     setup_round::Inert,
+    special_abilities::MergedSlime,
     sprite_modifications::{LerpType, SpriteModification},
     GameState,
 };
@@ -34,7 +35,7 @@ impl Plugin for SpawnSlimesPlugin {
 #[derive(Resource)]
 pub struct SlimesToSpawn {
     pub player_army: Option<Army>,
-    pub enemy_army: Army,
+    pub enemy_wave: EnemyWave,
 }
 
 #[derive(Resource)]
@@ -42,10 +43,14 @@ pub struct SlimeSpawnTimer(pub Timer);
 
 /// Queues armies for staggered spawning. Pass `None` for `player_army` when
 /// survivors are already on the field (e.g. venture further).
-pub fn setup_slime_spawn(commands: &mut Commands, player_army: Option<Army>, enemy_army: Army) {
+pub fn setup_slime_spawn(
+    commands: &mut Commands,
+    player_army: Option<Army>,
+    enemy_wave: EnemyWave,
+) {
     commands.insert_resource(SlimesToSpawn {
         player_army,
-        enemy_army,
+        enemy_wave,
     });
     commands.insert_resource(SlimeSpawnTimer(Timer::from_seconds(
         0.1,
@@ -57,7 +62,7 @@ fn start_combat_system(mut commands: Commands, save_data: Res<SaveData>) {
     setup_slime_spawn(
         &mut commands,
         Some(save_data.army.clone()),
-        crate::armies::create_enemy_army(),
+        crate::armies::create_enemy_army(1),
     );
 }
 
@@ -94,7 +99,7 @@ fn spawn_slimes_system(
             }
         }
 
-        let enemy = &mut slimes_to_spawn.enemy_army;
+        let enemy = &mut slimes_to_spawn.enemy_wave.army;
         if enemy.normal.count > 0 {
             spawn_normal_slime(&mut commands, Team::Enemy, enemy.normal.hp);
             enemy.normal.count -= 1;
@@ -117,6 +122,9 @@ fn spawn_slimes_system(
                 enemy.wizards.spear_knockback,
             );
             enemy.wizards.count -= 1;
+        } else if slimes_to_spawn.enemy_wave.merged_count > 0 {
+            spawn_merged_slime(&mut commands, Team::Enemy, None);
+            slimes_to_spawn.enemy_wave.merged_count -= 1;
         }
     }
 
@@ -125,8 +133,9 @@ fn spawn_slimes_system(
         .as_ref()
         .map(|p| p.normal.count + p.tanks.count + p.wizards.count)
         .unwrap_or(0);
-    let enemy = &slimes_to_spawn.enemy_army;
-    let enemy_remaining = enemy.normal.count + enemy.tanks.count + enemy.wizards.count;
+    let enemy = &slimes_to_spawn.enemy_wave.army;
+    let enemy_remaining =
+        enemy.normal.count + enemy.tanks.count + enemy.wizards.count + slimes_to_spawn.enemy_wave.merged_count;
 
     if player_remaining + enemy_remaining == 0 {
         commands.remove_resource::<SlimeSpawnTimer>();
@@ -319,6 +328,75 @@ fn spawn_wizard_slime(
             }]),
             TimeBetweenAttacks(2.0),
         ));
+
+    entity
+}
+
+/// Spawns a merged (big) slime. Used both by the spawn system (for level 10
+/// pre-made merged slimes) and by the merge system in special_abilities.rs.
+/// Pass `Some(pos)` to place at a specific position (merge midpoint), or
+/// `None` for a random enemy-side position.
+pub fn spawn_merged_slime(commands: &mut Commands, team: Team, position: Option<Vec3>) -> Entity {
+    let mut rng = rand::thread_rng();
+
+    let pos = position.unwrap_or_else(|| {
+        let x = match team {
+            Team::Player => rng.gen_range(-500.0..-100.0),
+            Team::Enemy => rng.gen_range(100.0..500.0),
+        };
+        let y = rng.gen_range(-200.0..200.0);
+        Vec3::new(x, y, 0.0)
+    });
+
+    let (big_idle, big_attack, big_death, big_victory) = match team {
+        Team::Player => (
+            AnimationType::BigSlimeJumpIdle,
+            AnimationType::BigSlimeAttack,
+            AnimationType::BigSlimeDeath,
+            AnimationType::BigSlimeJumpIdle,
+        ),
+        Team::Enemy => (
+            AnimationType::EnemyBigSlimeJumpIdle,
+            AnimationType::EnemyBigSlimeAttack,
+            AnimationType::EnemyBigSlimeDeath,
+            AnimationType::EnemyBigSlimeJumpIdle,
+        ),
+    };
+
+    let entity = commands
+        .spawn((
+            DespawnOnExit(GameState::Combat),
+            big_idle,
+            IdleAnimation(big_idle),
+            VictoryAnimation(big_victory),
+            Transform::from_translation(pos).with_scale(Vec3::splat(2.0)),
+            team,
+            PickTargetStrategy::Close,
+            DeathAnimation(big_death),
+            Health(40),
+            Speed(125.0),
+            KnownAttacks(vec![Attack {
+                animation: big_attack,
+                hit_frame: 3,
+                on_hit_effect: AttackEffect {
+                    damage: 8,
+                    knockback: 0.0,
+                    ..Default::default()
+                },
+                range: 100.0,
+            }]),
+            MergedSlime,
+            Inert,
+            SpriteModification {
+                lerp: LerpType::EaseInOut,
+                timer: Timer::from_seconds(3.0, TimerMode::Once),
+            },
+        ))
+        .id();
+
+    if team == Team::Enemy {
+        commands.entity(entity).insert(GoopValue(5));
+    }
 
     entity
 }
