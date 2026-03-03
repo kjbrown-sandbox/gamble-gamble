@@ -16,6 +16,7 @@ impl Plugin for HomePlugin {
                     battle_button_system,
                     army_button_system,
                     update_count_text_system,
+                    update_goop_text_system,
                     button_hover_system,
                 )
                     .run_if(in_state(GameState::Home)),
@@ -35,6 +36,9 @@ enum SlimeType {
 
 #[derive(Component)]
 struct SlimeCountText(SlimeType);
+
+#[derive(Component)]
+struct GoopText;
 
 #[derive(Component)]
 struct ArmyButton {
@@ -65,7 +69,21 @@ fn setup_home(mut commands: Commands, game_font: Res<GameFont>, save_data: Res<S
             BackgroundColor(BG_COLOR),
         ))
         .with_children(|root| {
-            // Title
+            root.spawn((
+                GoopText,
+                Text::new(format!("Slime Goop: {}", save_data.goop)),
+                TextFont {
+                    font: font.clone(),
+                    font_size: 36.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.4, 0.9, 0.2)),
+                Node {
+                    margin: UiRect::bottom(Val::Px(10.0)),
+                    ..default()
+                },
+            ));
+
             root.spawn((
                 Text::new("Your Army"),
                 TextFont {
@@ -226,6 +244,18 @@ fn update_count_text_system(
             SlimeType::Wizard => ("Wizard", save_data.army.wizards.count),
         };
         **text = format!("{label}: {count}");
+    }
+}
+
+fn update_goop_text_system(
+    mut query: Query<&mut Text, With<GoopText>>,
+    save_data: Res<SaveData>,
+) {
+    if !save_data.is_changed() {
+        return;
+    }
+    for mut text in &mut query {
+        **text = format!("Slime Goop: {}", save_data.goop);
     }
 }
 

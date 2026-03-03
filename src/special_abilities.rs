@@ -9,6 +9,7 @@ use crate::{
     movement::{Speed, TargetEntity},
     pick_target::{PickTargetStrategy, Team},
     setup_round::Inert,
+    spawn_slimes::GoopValue,
     CombatState, GameFont, GameState,
 };
 
@@ -441,33 +442,39 @@ fn execute_merge_system(
             ),
         };
 
-        commands.spawn((
-            DespawnOnExit(GameState::Combat),
-            big_idle,
-            IdleAnimation(big_idle),
-            VictoryAnimation(big_victory),
-            Transform::from_translation(midpoint).with_scale(Vec3::splat(merged_scale)),
-            *team,
-            PickTargetStrategy::Close,
-            DeathAnimation(big_death),
-            // 4x health of a normal slime (normal = 10)
-            Health(40),
-            // Same movement speed — the "lumbering" look comes from the slower animation
-            Speed(125.0),
-            // 4x damage of a normal slime (normal = 2), same range
-            KnownAttacks(vec![Attack {
-                animation: big_attack,
-                hit_frame: 3,
-                on_hit_effect: AttackEffect {
-                    damage: 8,
-                    knockback: 0.0,
-                    ..Default::default()
-                },
-                range: 100.0,
-            }]),
-            // Permanent marker — prevents this slime from merging again
-            MergedSlime,
-        ));
+        let merged = commands
+            .spawn((
+                DespawnOnExit(GameState::Combat),
+                big_idle,
+                IdleAnimation(big_idle),
+                VictoryAnimation(big_victory),
+                Transform::from_translation(midpoint).with_scale(Vec3::splat(merged_scale)),
+                *team,
+                PickTargetStrategy::Close,
+                DeathAnimation(big_death),
+                // 4x health of a normal slime (normal = 10)
+                Health(40),
+                // Same movement speed — the "lumbering" look comes from the slower animation
+                Speed(125.0),
+                // 4x damage of a normal slime (normal = 2), same range
+                KnownAttacks(vec![Attack {
+                    animation: big_attack,
+                    hit_frame: 3,
+                    on_hit_effect: AttackEffect {
+                        damage: 8,
+                        knockback: 0.0,
+                        ..Default::default()
+                    },
+                    range: 100.0,
+                }]),
+                // Permanent marker — prevents this slime from merging again
+                MergedSlime,
+            ))
+            .id();
+
+        if *team == Team::Enemy {
+            commands.entity(merged).insert(GoopValue(5));
+        }
     }
 }
 

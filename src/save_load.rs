@@ -9,11 +9,12 @@ pub struct SaveLoadPlugin;
 impl Plugin for SaveLoadPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(PreStartup, load_save_data)
-            .add_systems(OnExit(GameState::Home), save_on_exit_home);
+            .add_systems(OnEnter(GameState::Home), save_game)
+            .add_systems(OnExit(GameState::Home), save_game);
     }
 }
 
-fn save_on_exit_home(save_data: Res<SaveData>) {
+fn save_game(save_data: Res<SaveData>) {
     save_to_disk(&save_data);
 }
 
@@ -38,12 +39,15 @@ fn save_on_exit_home(save_data: Res<SaveData>) {
 #[derive(Resource, Serialize, Deserialize, Debug, Clone)]
 pub struct SaveData {
     pub army: Army,
+    #[serde(default)]
+    pub goop: u32,
 }
 
 impl Default for SaveData {
     fn default() -> Self {
         Self {
             army: Army::default(),
+            goop: 0,
         }
     }
 }

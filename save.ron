@@ -18,4 +18,5 @@
             spear_knockback: 200.0,
         ),
     ),
+    goop: 8,
 )

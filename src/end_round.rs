@@ -4,11 +4,13 @@ use rand::Rng;
 use crate::animation::{AnimationType, IdleAnimation, VictoryAnimation};
 use crate::armies::create_enemy_army;
 use crate::combat::{ActiveAttack, AttackCooldown};
+use crate::health::Dying;
 use crate::movement::{Knockback, Speed, TargetEntity, TargetTransform};
 use crate::pick_target::Team;
 use crate::render::Background;
+use crate::save_load::SaveData;
 use crate::setup_round::{Inert, PreGameTimer, StunTimer};
-use crate::spawn_slimes::{setup_slime_spawn, SlimeSpawnTimer, SlimesToSpawn};
+use crate::spawn_slimes::{setup_slime_spawn, GoopValue, SlimeSpawnTimer, SlimesToSpawn};
 use crate::special_abilities::{Merging, PreMerging};
 use crate::{CombatState, GameFont, GameState};
 
@@ -17,10 +19,12 @@ pub struct EndRoundPlugin;
 impl Plugin for EndRoundPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnExit(GameState::Combat), cleanup_combat_resources)
+            .add_systems(OnEnter(GameState::Combat), init_goop_earned)
             .add_systems(OnEnter(CombatState::PostCombat), enter_post_combat)
             .add_systems(
                 Update,
-                check_round_end_system.run_if(in_state(CombatState::DuringCombat)),
+                (check_round_end_system, accumulate_goop_system)
+                    .run_if(in_state(CombatState::DuringCombat)),
             )
             .add_systems(
                 Update,
@@ -40,6 +44,9 @@ pub enum RoundResult {
     Defeat,
 }
 
+#[derive(Resource, Default)]
+pub struct GoopEarned(pub u32);
+
 #[derive(Component)]
 struct GoHomeButton;
 
@@ -49,6 +56,21 @@ struct VentureFurtherButton;
 const BUTTON_COLOR: Color = Color::srgb(0.2, 0.2, 0.2);
 const BUTTON_HOVER_COLOR: Color = Color::srgb(0.35, 0.35, 0.35);
 const BUTTON_PRESSED_COLOR: Color = Color::srgb(0.15, 0.15, 0.15);
+
+fn init_goop_earned(mut commands: Commands) {
+    commands.insert_resource(GoopEarned(0));
+}
+
+fn accumulate_goop_system(
+    query: Query<(&GoopValue, &Team), Added<Dying>>,
+    mut goop_earned: ResMut<GoopEarned>,
+) {
+    for (value, team) in &query {
+        if *team == Team::Enemy {
+            goop_earned.0 += value.0;
+        }
+    }
+}
 
 /// Checks if one team has been eliminated. If so, transitions to PostCombat.
 fn check_round_end_system(teams: Query<&Team>, mut next_state: ResMut<NextState<CombatState>>) {
@@ -186,9 +208,12 @@ fn spawn_button(
 fn go_home_button_system(
     query: Query<&Interaction, (Changed<Interaction>, With<GoHomeButton>)>,
     mut next_state: ResMut<NextState<GameState>>,
+    goop_earned: Res<GoopEarned>,
+    mut save_data: ResMut<SaveData>,
 ) {
     for interaction in &query {
         if *interaction == Interaction::Pressed {
+            save_data.goop += goop_earned.0;
             next_state.set(GameState::Home);
         }
     }
@@ -275,4 +300,5 @@ fn cleanup_combat_resources(mut commands: Commands) {
     commands.remove_resource::<PreGameTimer>();
     commands.remove_resource::<SlimeSpawnTimer>();
     commands.remove_resource::<SlimesToSpawn>();
+    commands.remove_resource::<GoopEarned>();
 }

@@ -14,6 +14,9 @@ use crate::{
     GameState,
 };
 
+#[derive(Component)]
+pub struct GoopValue(pub u32);
+
 pub struct SpawnSlimesPlugin;
 
 impl Plugin for SpawnSlimesPlugin {
@@ -164,7 +167,7 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team, hp: i32) -> Entity {
         ),
     };
 
-    commands
+    let entity = commands
         .spawn((
             DespawnOnExit(GameState::Combat),
             idle_anim,
@@ -196,7 +199,13 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team, hp: i32) -> Entity {
                 timer: Timer::from_seconds(3.0, TimerMode::Once),
             },
         ))
-        .id()
+        .id();
+
+    if team == Team::Enemy {
+        commands.entity(entity).insert(GoopValue(1));
+    }
+
+    entity
 }
 
 fn spawn_tank_slime(
@@ -233,7 +242,10 @@ fn spawn_tank_slime(
         },
         range: 65.0,
     }]));
-    // BlockChance is on the parent slime (the defender), not the shield child.
+    if team == Team::Enemy {
+        commands.entity(entity).insert(GoopValue(3));
+    }
+
     commands
         .entity(entity)
         .insert(BlockChance(block_chance))
@@ -270,6 +282,10 @@ fn spawn_wizard_slime(
         Team::Player => AnimationType::MageCast,
         Team::Enemy => AnimationType::EnemyMageCast,
     };
+
+    if team == Team::Enemy {
+        commands.entity(entity).insert(GoopValue(2));
+    }
 
     commands
         .entity(entity)
