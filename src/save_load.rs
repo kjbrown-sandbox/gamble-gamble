@@ -2,13 +2,19 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::armies::Army;
+use crate::GameState;
 
 pub struct SaveLoadPlugin;
 
 impl Plugin for SaveLoadPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(PreStartup, load_save_data);
+        app.add_systems(PreStartup, load_save_data)
+            .add_systems(OnExit(GameState::Home), save_on_exit_home);
     }
+}
+
+fn save_on_exit_home(save_data: Res<SaveData>) {
+    save_to_disk(&save_data);
 }
 
 /// The player's persistent save data.
