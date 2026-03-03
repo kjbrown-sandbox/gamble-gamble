@@ -3,6 +3,7 @@ use bevy::ecs::relationship::RelatedSpawnerCommands;
 use bevy::prelude::*;
 
 use crate::save_load::SaveData;
+use crate::screen_fade::{spawn_screen_fade, ScreenFade};
 use crate::{GameFont, GameState};
 
 pub struct HomePlugin;
@@ -260,12 +261,16 @@ fn update_goop_text_system(
 }
 
 fn battle_button_system(
+    mut commands: Commands,
     query: Query<&Interaction, (Changed<Interaction>, With<BattleButton>)>,
-    mut next_state: ResMut<NextState<GameState>>,
+    existing_fade: Query<(), With<ScreenFade>>,
 ) {
+    if !existing_fade.is_empty() {
+        return;
+    }
     for interaction in &query {
         if *interaction == Interaction::Pressed {
-            next_state.set(GameState::Combat);
+            spawn_screen_fade(&mut commands, GameState::Combat);
         }
     }
 }

@@ -12,6 +12,7 @@ use crate::save_load::SaveData;
 use crate::setup_round::{Inert, PreGameTimer, StunTimer};
 use crate::spawn_slimes::{setup_slime_spawn, GoopValue, SlimeSpawnTimer, SlimesToSpawn};
 use crate::special_abilities::{Merging, PreMerging};
+use crate::screen_fade::{spawn_screen_fade, ScreenFade};
 use crate::{CombatState, GameFont, GameState};
 
 pub struct EndRoundPlugin;
@@ -318,15 +319,19 @@ fn spawn_button(
 }
 
 fn go_home_button_system(
+    mut commands: Commands,
     query: Query<&Interaction, (Changed<Interaction>, With<GoHomeButton>)>,
-    mut next_state: ResMut<NextState<GameState>>,
+    existing_fade: Query<(), With<ScreenFade>>,
     goop_earned: Res<GoopEarned>,
     mut save_data: ResMut<SaveData>,
 ) {
+    if !existing_fade.is_empty() {
+        return;
+    }
     for interaction in &query {
         if *interaction == Interaction::Pressed {
             save_data.goop += goop_earned.0;
-            next_state.set(GameState::Home);
+            spawn_screen_fade(&mut commands, GameState::Home);
         }
     }
 }
