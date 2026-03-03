@@ -1,7 +1,7 @@
 (
     army: (
         normal: (
-            count: 30,
+            count: 1,
             hp: 5,
         ),
         tanks: (
@@ -11,12 +11,12 @@
             stun_chance: 0.1,
         ),
         wizards: (
-            count: 2,
+            count: 0,
             hp: 5,
             spell_range: 500.0,
             aoe_damage: 1,
             spear_knockback: 200.0,
         ),
     ),
-    goop: 2113,
+    goop: 1,
 )

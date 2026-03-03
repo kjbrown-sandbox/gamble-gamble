@@ -18,6 +18,7 @@ impl Plugin for HomePlugin {
                     army_button_system,
                     update_count_text_system,
                     update_goop_text_system,
+                    update_cost_tooltip_system,
                     button_hover_system,
                 )
                     .run_if(in_state(GameState::Home)),
@@ -35,11 +36,31 @@ enum SlimeType {
     Wizard,
 }
 
+impl SlimeType {
+    fn base_cost(self) -> u32 {
+        match self {
+            SlimeType::Normal => 1,
+            SlimeType::Tank | SlimeType::Wizard => 10,
+        }
+    }
+}
+
+fn get_count(slime_type: SlimeType, save_data: &SaveData) -> u32 {
+    match slime_type {
+        SlimeType::Normal => save_data.army.normal.count,
+        SlimeType::Tank => save_data.army.tanks.count,
+        SlimeType::Wizard => save_data.army.wizards.count,
+    }
+}
+
 #[derive(Component)]
 struct SlimeCountText(SlimeType);
 
 #[derive(Component)]
 struct GoopText;
+
+#[derive(Component)]
+struct CostTooltip;
 
 #[derive(Component)]
 struct ArmyButton {
@@ -81,6 +102,15 @@ fn setup_home(mut commands: Commands, game_font: Res<GameFont>, save_data: Res<S
                 TextColor(Color::srgb(0.4, 0.9, 0.2)),
                 Node {
                     margin: UiRect::bottom(Val::Px(10.0)),
+                    ..default()
+                },
+            ))
+            .with_child((
+                CostTooltip,
+                TextSpan::new(""),
+                TextFont {
+                    font: font.clone(),
+                    font_size: 36.0,
                     ..default()
                 },
             ));
@@ -219,12 +249,27 @@ fn army_button_system(
             continue;
         }
 
+        let base = army_btn.slime_type.base_cost();
+        let current = get_count(army_btn.slime_type, &save_data);
+
+        if army_btn.delta > 0 {
+            let cost = base * (current + 1);
+            if save_data.goop < cost {
+                continue;
+            }
+            save_data.goop -= cost;
+        } else if current == 0 {
+            continue;
+        } else {
+            let refund = base * current;
+            save_data.goop += refund;
+        }
+
         let count = match army_btn.slime_type {
             SlimeType::Normal => &mut save_data.army.normal.count,
             SlimeType::Tank => &mut save_data.army.tanks.count,
             SlimeType::Wizard => &mut save_data.army.wizards.count,
         };
-
         let new_val = *count as i32 + army_btn.delta;
         *count = new_val.max(0) as u32;
     }
@@ -272,6 +317,47 @@ fn battle_button_system(
         if *interaction == Interaction::Pressed {
             spawn_screen_fade(&mut commands, GameState::Combat);
         }
+    }
+}
+
+const COST_COLOR: Color = Color::srgb(0.9, 0.3, 0.3);
+const REFUND_COLOR: Color = Color::srgb(0.3, 0.9, 0.3);
+
+fn update_cost_tooltip_system(
+    army_query: Query<(&Interaction, &ArmyButton)>,
+    mut tooltip_query: Query<(&mut TextSpan, &mut TextColor), With<CostTooltip>>,
+    save_data: Res<SaveData>,
+) {
+    let Ok((mut span, mut color)) = tooltip_query.single_mut() else {
+        return;
+    };
+
+    let mut found_hover = false;
+    for (interaction, army_btn) in &army_query {
+        if *interaction != Interaction::Hovered {
+            continue;
+        }
+        found_hover = true;
+
+        let base = army_btn.slime_type.base_cost();
+        let current = get_count(army_btn.slime_type, &save_data);
+
+        if army_btn.delta > 0 {
+            let cost = base * (current + 1);
+            **span = format!(" -{cost}");
+            *color = TextColor(COST_COLOR);
+        } else if current > 0 {
+            let refund = base * current;
+            **span = format!(" +{refund}");
+            *color = TextColor(REFUND_COLOR);
+        } else {
+            **span = String::new();
+        }
+        break;
+    }
+
+    if !found_hover {
+        **span = String::new();
     }
 }
 

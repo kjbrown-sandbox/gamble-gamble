@@ -26,8 +26,7 @@ impl Plugin for SetupRoundPlugin {
             )
             .add_systems(
                 Update,
-                (stun_timer_system, on_add_stun_system)
-                    .run_if(in_state(CombatState::DuringCombat)),
+                (stun_timer_system, on_add_stun_system).run_if(in_state(CombatState::DuringCombat)),
             );
     }
 }
@@ -169,7 +168,7 @@ fn on_add_stun_system(
 /// fires after PreStartup), all resources like GameFont, SaveData, and GameAudio
 /// are guaranteed to exist before any OnEnter(Combat) systems run.
 fn leave_initial_loading(mut next_state: ResMut<NextState<GameState>>) {
-    next_state.set(GameState::Combat);
+    next_state.set(GameState::Home);
 }
 
 /// Spawns the combat arena background and vignette.
@@ -210,8 +209,7 @@ fn setup_combat_arena(
             color: Color::srgba(1.0, 1.0, 1.0, 0.05),
             ..default()
         },
-        Transform::from_xyz(first_center_x + tile_width, 0.0, -10.0)
-            .with_scale(Vec3::splat(3.0)),
+        Transform::from_xyz(first_center_x + tile_width, 0.0, -10.0).with_scale(Vec3::splat(3.0)),
     ));
 
     let vignette_height: u32 = 64;
