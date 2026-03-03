@@ -37,6 +37,7 @@ impl Plugin for EndRoundPlugin {
                     go_home_button_system,
                     venture_further_button_system,
                     button_hover_system,
+                    button_hint_system,
                 )
                     .run_if(in_state(CombatState::PostCombat)),
             );
@@ -65,7 +66,10 @@ struct VentureFurtherButton;
 struct GoopText;
 
 #[derive(Component)]
-struct GoopMultiplierText;
+struct ButtonHintText;
+
+#[derive(Component)]
+struct ButtonHintBg;
 
 #[derive(Component)]
 struct DepthText;
@@ -73,6 +77,7 @@ struct DepthText;
 const BUTTON_COLOR: Color = Color::srgb(0.2, 0.2, 0.2);
 const BUTTON_HOVER_COLOR: Color = Color::srgb(0.35, 0.35, 0.35);
 const BUTTON_PRESSED_COLOR: Color = Color::srgb(0.15, 0.15, 0.15);
+const VENTURE_MULTIPLIER: f32 = 1.2;
 
 fn init_goop_earned(mut commands: Commands) {
     commands.insert_resource(GoopEarned(0));
@@ -108,35 +113,16 @@ fn spawn_combat_hud(mut commands: Commands, game_font: Res<GameFont>) {
             // Left spacer to balance the flexbox
             hud.spawn(Node::default());
 
-            // Bottom center: goop counter + multiplier
-            hud.spawn(Node {
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
-                row_gap: Val::Px(4.0),
-                ..default()
-            })
-            .with_children(|col| {
-                col.spawn((
-                    GoopMultiplierText,
-                    Text::new(""),
-                    TextFont {
-                        font: game_font.0.clone(),
-                        font_size: 28.0,
-                        ..default()
-                    },
-                    TextColor(Color::srgb(0.3, 0.9, 0.2)),
-                ));
-                col.spawn((
-                    GoopText,
-                    Text::new("Goop collected: 0"),
-                    TextFont {
-                        font: game_font.0.clone(),
-                        font_size: 32.0,
-                        ..default()
-                    },
-                    TextColor(Color::WHITE),
-                ));
-            });
+            hud.spawn((
+                GoopText,
+                Text::new("Goop collected: 0"),
+                TextFont {
+                    font: game_font.0.clone(),
+                    font_size: 32.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+            ));
 
             // Bottom right: depth level
             hud.spawn((
@@ -191,8 +177,6 @@ fn enter_post_combat(
     mut survivors: Query<(Entity, &mut AnimationType, &VictoryAnimation, &Team)>,
     frozen_mergers: Query<Entity, Or<(With<PreMerging>, With<Merging>)>>,
     game_font: Res<GameFont>,
-    goop_earned: Res<GoopEarned>,
-    mut multiplier_query: Query<&mut Text, With<GoopMultiplierText>>,
 ) {
     let mut has_player = false;
     let mut has_enemy = false;
@@ -212,13 +196,6 @@ fn enter_post_combat(
 
     let is_victory = result == RoundResult::Victory;
     commands.insert_resource(result);
-
-    if is_victory {
-        let doubled = goop_earned.0 * 2;
-        for mut text in &mut multiplier_query {
-            **text = format!("x2 -> {}", doubled);
-        }
-    }
 
     // PreMerging removes AnimationState and spawns "!" child text.
     // Restore AnimationState (switch_animation_system will overwrite it with
@@ -278,11 +255,33 @@ fn enter_post_combat(
                     ..default()
                 })
                 .with_children(|row| {
+                    spawn_button(row, &game_font, "Go home", GoHomeButton);
                     if is_victory {
-                        spawn_button(row, &game_font, "Venture Further", VentureFurtherButton);
+                        spawn_button(row, &game_font, "Risk deeper", VentureFurtherButton);
                     }
-                    spawn_button(row, &game_font, "Go Home", GoHomeButton);
                 });
+
+            if is_victory {
+                parent
+                    .spawn((
+                        ButtonHintBg,
+                        Node {
+                            padding: UiRect::axes(Val::Px(16.0), Val::Px(8.0)),
+                            ..default()
+                        },
+                        BackgroundColor(Color::NONE),
+                    ))
+                    .with_child((
+                        ButtonHintText,
+                        Text::new(" "),
+                        TextFont {
+                            font: game_font.0.clone(),
+                            font_size: 28.0,
+                            ..default()
+                        },
+                        TextColor(Color::NONE),
+                    ));
+            }
         });
 }
 
@@ -357,8 +356,7 @@ fn venture_further_button_system(
     mut next_state: ResMut<NextState<CombatState>>,
     mut combat_level: ResMut<CombatLevel>,
     mut goop_earned: ResMut<GoopEarned>,
-    mut depth_query: Query<&mut Text, (With<DepthText>, Without<GoopMultiplierText>)>,
-    mut multiplier_query: Query<&mut Text, (With<GoopMultiplierText>, Without<DepthText>)>,
+    mut depth_query: Query<&mut Text, With<DepthText>>,
 ) {
     let mut clicked = false;
     for interaction in &query {
@@ -401,18 +399,62 @@ fn venture_further_button_system(
             .insert((TargetTransform(target), Speed(60.0)));
     }
 
-    goop_earned.0 *= 2;
+    goop_earned.0 = (goop_earned.0 as f32 * VENTURE_MULTIPLIER).ceil() as u32;
     combat_level.0 += 1;
     setup_slime_spawn(&mut commands, None, create_enemy_army(combat_level.0));
 
     for mut text in &mut depth_query {
         **text = format!("Depth: {}", combat_level.0);
     }
-    for mut text in &mut multiplier_query {
-        **text = String::new();
-    }
 
     next_state.set(CombatState::PreCombat);
+}
+
+fn button_hint_system(
+    venture_query: Query<&Interaction, With<VentureFurtherButton>>,
+    home_query: Query<&Interaction, With<GoHomeButton>>,
+    goop_earned: Res<GoopEarned>,
+    mut hint_query: Query<(&mut Text, &mut TextColor), With<ButtonHintText>>,
+    mut bg_query: Query<&mut BackgroundColor, With<ButtonHintBg>>,
+) {
+    let mut hint: Option<String> = None;
+
+    for interaction in &venture_query {
+        if *interaction == Interaction::Hovered || *interaction == Interaction::Pressed {
+            let projected = (goop_earned.0 as f32 * VENTURE_MULTIPLIER).ceil() as u32;
+            hint = Some(format!("goop x{} -> {}", VENTURE_MULTIPLIER, projected));
+        }
+    }
+
+    if hint.is_none() {
+        for interaction in &home_query {
+            if *interaction == Interaction::Hovered || *interaction == Interaction::Pressed {
+                hint = Some("lock in your goop".to_string());
+            }
+        }
+    }
+
+    let showing = hint.is_some();
+
+    for (mut text, mut color) in &mut hint_query {
+        match &hint {
+            Some(msg) => {
+                **text = msg.clone();
+                *color = TextColor(Color::WHITE);
+            }
+            None => {
+                *color = TextColor(Color::NONE);
+            }
+        }
+    }
+
+    for mut bg in &mut bg_query {
+        *bg = if showing {
+            BackgroundColor(Color::srgb(0.1, 0.4, 0.1))
+        } else {
+            BackgroundColor(Color::NONE)
+        };
+    }
 }
 
 fn button_hover_system(
