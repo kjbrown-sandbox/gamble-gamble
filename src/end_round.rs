@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use rand::Rng;
 
-use crate::animation::{AnimationType, IdleAnimation, VictoryAnimation};
+use crate::animation::{AnimationState, AnimationType, IdleAnimation, VictoryAnimation};
 use crate::armies::create_enemy_army;
 use crate::combat::{ActiveAttack, AttackCooldown};
 use crate::health::Dying;
@@ -188,6 +188,7 @@ fn enter_post_combat(
     mut commands: Commands,
     teams: Query<&Team>,
     mut survivors: Query<(Entity, &mut AnimationType, &VictoryAnimation, &Team)>,
+    frozen_mergers: Query<Entity, Or<(With<PreMerging>, With<Merging>)>>,
     game_font: Res<GameFont>,
     goop_earned: Res<GoopEarned>,
     mut multiplier_query: Query<&mut Text, With<GoopMultiplierText>>,
@@ -216,6 +217,17 @@ fn enter_post_combat(
         for mut text in &mut multiplier_query {
             **text = format!("x2 -> {}", doubled);
         }
+    }
+
+    // PreMerging removes AnimationState and spawns "!" child text.
+    // Restore AnimationState (switch_animation_system will overwrite it with
+    // the correct values once AnimationType changes below) and despawn the
+    // children so the "!" doesn't linger.
+    for entity in &frozen_mergers {
+        commands
+            .entity(entity)
+            .insert(AnimationState::new(0.1, 1, true));
+        commands.entity(entity).despawn_children();
     }
 
     for (entity, mut anim_type, victory_anim, _team) in survivors.iter_mut() {
