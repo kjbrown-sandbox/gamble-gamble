@@ -19,12 +19,16 @@ pub struct EndRoundPlugin;
 impl Plugin for EndRoundPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnExit(GameState::Combat), cleanup_combat_resources)
-            .add_systems(OnEnter(GameState::Combat), init_goop_earned)
+            .add_systems(OnEnter(GameState::Combat), (init_goop_earned, spawn_combat_hud))
             .add_systems(OnEnter(CombatState::PostCombat), enter_post_combat)
             .add_systems(
                 Update,
                 (check_round_end_system, accumulate_goop_system)
                     .run_if(in_state(CombatState::DuringCombat)),
+            )
+            .add_systems(
+                Update,
+                update_goop_text.run_if(in_state(GameState::Combat)),
             )
             .add_systems(
                 Update,
@@ -56,6 +60,15 @@ struct GoHomeButton;
 #[derive(Component)]
 struct VentureFurtherButton;
 
+#[derive(Component)]
+struct GoopText;
+
+#[derive(Component)]
+struct GoopMultiplierText;
+
+#[derive(Component)]
+struct DepthText;
+
 const BUTTON_COLOR: Color = Color::srgb(0.2, 0.2, 0.2);
 const BUTTON_HOVER_COLOR: Color = Color::srgb(0.35, 0.35, 0.35);
 const BUTTON_PRESSED_COLOR: Color = Color::srgb(0.15, 0.15, 0.15);
@@ -73,6 +86,80 @@ fn accumulate_goop_system(
         if *team == Team::Enemy {
             goop_earned.0 += value.0;
         }
+    }
+}
+
+fn spawn_combat_hud(mut commands: Commands, game_font: Res<GameFont>) {
+    commands
+        .spawn((
+            DespawnOnExit(GameState::Combat),
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::SpaceBetween,
+                align_items: AlignItems::FlexEnd,
+                padding: UiRect::all(Val::Px(16.0)),
+                ..default()
+            },
+            Pickable::IGNORE,
+        ))
+        .with_children(|hud| {
+            // Left spacer to balance the flexbox
+            hud.spawn(Node::default());
+
+            // Bottom center: gloop counter + multiplier
+            hud.spawn(Node {
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
+                row_gap: Val::Px(4.0),
+                ..default()
+            })
+            .with_children(|col| {
+                col.spawn((
+                    GoopMultiplierText,
+                    Text::new(""),
+                    TextFont {
+                        font: game_font.0.clone(),
+                        font_size: 28.0,
+                        ..default()
+                    },
+                    TextColor(Color::srgb(0.3, 0.9, 0.2)),
+                ));
+                col.spawn((
+                    GoopText,
+                    Text::new("Gloop collected: 0"),
+                    TextFont {
+                        font: game_font.0.clone(),
+                        font_size: 32.0,
+                        ..default()
+                    },
+                    TextColor(Color::WHITE),
+                ));
+            });
+
+            // Bottom right: depth level
+            hud.spawn((
+                DepthText,
+                Text::new("Depth: 1"),
+                TextFont {
+                    font: game_font.0.clone(),
+                    font_size: 28.0,
+                    ..default()
+                },
+                TextColor(Color::srgb(0.7, 0.7, 0.7)),
+            ));
+        });
+}
+
+fn update_goop_text(
+    goop_earned: Res<GoopEarned>,
+    mut goop_query: Query<&mut Text, With<GoopText>>,
+) {
+    if !goop_earned.is_changed() {
+        return;
+    }
+    for mut text in &mut goop_query {
+        **text = format!("Gloop collected: {}", goop_earned.0);
     }
 }
 
@@ -102,6 +189,8 @@ fn enter_post_combat(
     teams: Query<&Team>,
     mut survivors: Query<(Entity, &mut AnimationType, &VictoryAnimation, &Team)>,
     game_font: Res<GameFont>,
+    goop_earned: Res<GoopEarned>,
+    mut multiplier_query: Query<&mut Text, With<GoopMultiplierText>>,
 ) {
     let mut has_player = false;
     let mut has_enemy = false;
@@ -121,6 +210,13 @@ fn enter_post_combat(
 
     let is_victory = result == RoundResult::Victory;
     commands.insert_resource(result);
+
+    if is_victory {
+        let doubled = goop_earned.0 * 2;
+        for mut text in &mut multiplier_query {
+            **text = format!("x2 -> {}", doubled);
+        }
+    }
 
     for (entity, mut anim_type, victory_anim, _team) in survivors.iter_mut() {
         *anim_type = victory_anim.0;
@@ -240,6 +336,9 @@ fn venture_further_button_system(
     backgrounds: Query<(Entity, &Transform), With<Background>>,
     mut next_state: ResMut<NextState<CombatState>>,
     mut combat_level: ResMut<CombatLevel>,
+    mut goop_earned: ResMut<GoopEarned>,
+    mut depth_query: Query<&mut Text, (With<DepthText>, Without<GoopMultiplierText>)>,
+    mut multiplier_query: Query<&mut Text, (With<GoopMultiplierText>, Without<DepthText>)>,
 ) {
     let mut clicked = false;
     for interaction in &query {
@@ -282,8 +381,16 @@ fn venture_further_button_system(
             .insert((TargetTransform(target), Speed(60.0)));
     }
 
+    goop_earned.0 *= 2;
     combat_level.0 += 1;
     setup_slime_spawn(&mut commands, None, create_enemy_army(combat_level.0));
+
+    for mut text in &mut depth_query {
+        **text = format!("Depth: {}", combat_level.0);
+    }
+    for mut text in &mut multiplier_query {
+        **text = String::new();
+    }
 
     next_state.set(CombatState::PreCombat);
 }
