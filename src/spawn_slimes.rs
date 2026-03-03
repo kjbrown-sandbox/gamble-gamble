@@ -5,7 +5,7 @@ use crate::{
     animation::{AnimationType, IdleAnimation, VictoryAnimation},
     armies::{Army, EnemyWave},
     combat::{Attack, AttackEffect, BlockChance, KnownAttacks, Shield, TimeBetweenAttacks},
-    health::{DeathAnimation, Health, HealthBar, MaxHealth},
+    health::{DeathAnimation, Health, MaxHealth},
     movement::{Speed, StaysNearParent},
     pick_target::{PickTargetStrategy, Team},
     save_load::SaveData,
@@ -211,11 +211,6 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team, hp: i32) -> Entity {
                 timer: Timer::from_seconds(3.0, TimerMode::Once),
             },
         ))
-        .with_child((
-            HealthBar,
-            Sprite::from_color(Color::srgb(0.0, 0.8, 0.0), Vec2::new(40.0, 4.0)),
-            Transform::from_xyz(0.0, -55.0, 2.0),
-        ))
         .id();
 
     if team == Team::Enemy {
@@ -401,11 +396,6 @@ pub fn spawn_merged_slime(commands: &mut Commands, team: Team, position: Option<
                 lerp: LerpType::EaseInOut,
                 timer: Timer::from_seconds(3.0, TimerMode::Once),
             },
-        ))
-        .with_child((
-            HealthBar,
-            Sprite::from_color(Color::srgb(0.0, 0.8, 0.0), Vec2::new(40.0, 4.0)),
-            Transform::from_xyz(0.0, 30.0, 2.0),
         ))
         .id();
 

@@ -24,6 +24,7 @@ impl Plugin for HealthPlugin {
                 set_dying_system,
                 when_starts_dying_system,
                 when_finishes_dying_system,
+                spawn_health_bars,
                 update_health_bars,
             )
                 .run_if(in_state(GameState::Combat)),
@@ -127,6 +128,17 @@ pub fn when_finishes_dying_system(
         if animation_state.finished {
             commands.entity(entity).despawn();
         }
+    }
+}
+
+/// Auto-spawns a health bar child whenever an entity receives MaxHealth.
+fn spawn_health_bars(mut commands: Commands, query: Query<Entity, Added<MaxHealth>>) {
+    for entity in &query {
+        commands.entity(entity).with_child((
+            HealthBar,
+            Sprite::from_color(Color::srgb(0.0, 0.8, 0.0), Vec2::new(HEALTH_BAR_WIDTH, HEALTH_BAR_HEIGHT)),
+            Transform::from_xyz(0.0, -55.0, 2.0),
+        ));
     }
 }
 
