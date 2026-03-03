@@ -5,7 +5,7 @@ use crate::{
     animation::{AnimationType, IdleAnimation, VictoryAnimation},
     armies::{Army, EnemyWave},
     combat::{Attack, AttackEffect, BlockChance, KnownAttacks, Shield, TimeBetweenAttacks},
-    health::{DeathAnimation, Health},
+    health::{DeathAnimation, Health, HealthBar, MaxHealth},
     movement::{Speed, StaysNearParent},
     pick_target::{PickTargetStrategy, Team},
     save_load::SaveData,
@@ -134,8 +134,10 @@ fn spawn_slimes_system(
         .map(|p| p.normal.count + p.tanks.count + p.wizards.count)
         .unwrap_or(0);
     let enemy = &slimes_to_spawn.enemy_wave.army;
-    let enemy_remaining =
-        enemy.normal.count + enemy.tanks.count + enemy.wizards.count + slimes_to_spawn.enemy_wave.merged_count;
+    let enemy_remaining = enemy.normal.count
+        + enemy.tanks.count
+        + enemy.wizards.count
+        + slimes_to_spawn.enemy_wave.merged_count;
 
     if player_remaining + enemy_remaining == 0 {
         commands.remove_resource::<SlimeSpawnTimer>();
@@ -191,6 +193,7 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team, hp: i32) -> Entity {
             },
             DeathAnimation(death_anim),
             Health(hp),
+            MaxHealth(hp),
             Speed(125.0),
             KnownAttacks(vec![Attack {
                 animation: attack_anim,
@@ -207,6 +210,11 @@ fn spawn_normal_slime(commands: &mut Commands, team: Team, hp: i32) -> Entity {
                 lerp: LerpType::EaseInOut,
                 timer: Timer::from_seconds(3.0, TimerMode::Once),
             },
+        ))
+        .with_child((
+            HealthBar,
+            Sprite::from_color(Color::srgb(0.0, 0.8, 0.0), Vec2::new(40.0, 4.0)),
+            Transform::from_xyz(0.0, -55.0, 2.0),
         ))
         .id();
 
@@ -363,6 +371,7 @@ pub fn spawn_merged_slime(commands: &mut Commands, team: Team, position: Option<
         ),
     };
 
+    let hp = 40;
     let entity = commands
         .spawn((
             DespawnOnExit(GameState::Combat),
@@ -373,7 +382,8 @@ pub fn spawn_merged_slime(commands: &mut Commands, team: Team, position: Option<
             team,
             PickTargetStrategy::Close,
             DeathAnimation(big_death),
-            Health(40),
+            Health(hp),
+            MaxHealth(hp),
             Speed(125.0),
             KnownAttacks(vec![Attack {
                 animation: big_attack,
@@ -391,6 +401,11 @@ pub fn spawn_merged_slime(commands: &mut Commands, team: Team, position: Option<
                 lerp: LerpType::EaseInOut,
                 timer: Timer::from_seconds(3.0, TimerMode::Once),
             },
+        ))
+        .with_child((
+            HealthBar,
+            Sprite::from_color(Color::srgb(0.0, 0.8, 0.0), Vec2::new(40.0, 4.0)),
+            Transform::from_xyz(0.0, 30.0, 2.0),
         ))
         .id();
 

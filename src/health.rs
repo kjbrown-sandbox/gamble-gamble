@@ -11,6 +11,9 @@ use crate::{
     GameState,
 };
 
+const HEALTH_BAR_WIDTH: f32 = 40.0;
+const HEALTH_BAR_HEIGHT: f32 = 4.0;
+
 pub struct HealthPlugin;
 
 impl Plugin for HealthPlugin {
@@ -21,6 +24,7 @@ impl Plugin for HealthPlugin {
                 set_dying_system,
                 when_starts_dying_system,
                 when_finishes_dying_system,
+                update_health_bars,
             )
                 .run_if(in_state(GameState::Combat)),
         )
@@ -30,6 +34,12 @@ impl Plugin for HealthPlugin {
 
 #[derive(Component, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Health(pub i32);
+
+#[derive(Component, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct MaxHealth(pub i32);
+
+#[derive(Component, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct HealthBar;
 
 #[derive(Component, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Dying;
@@ -117,6 +127,29 @@ pub fn when_finishes_dying_system(
         if animation_state.finished {
             commands.entity(entity).despawn();
         }
+    }
+}
+
+fn update_health_bars(
+    parent_query: Query<(&Health, &MaxHealth)>,
+    mut bar_query: Query<(&ChildOf, &mut Sprite), With<HealthBar>>,
+) {
+    for (parent, mut sprite) in bar_query.iter_mut() {
+        let Ok((health, max_health)) = parent_query.get(parent.0) else {
+            continue;
+        };
+
+        let ratio = (health.0 as f32 / max_health.0 as f32).clamp(0.0, 1.0);
+
+        sprite.custom_size = Some(Vec2::new(HEALTH_BAR_WIDTH * ratio, HEALTH_BAR_HEIGHT));
+
+        sprite.color = if ratio >= 0.5 {
+            Color::srgb(0.0, 0.8, 0.0)
+        } else if ratio >= 0.1 {
+            Color::srgb(0.9, 0.9, 0.0)
+        } else {
+            Color::srgb(0.9, 0.0, 0.0)
+        };
     }
 }
 

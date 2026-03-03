@@ -1,7 +1,7 @@
 (
     army: (
         normal: (
-            count: 1,
+            count: 2,
             hp: 5,
         ),
         tanks: (
@@ -18,5 +18,5 @@
             spear_knockback: 200.0,
         ),
     ),
-    goop: 1,
+    goop: 3,
 )
