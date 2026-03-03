@@ -9,10 +9,10 @@ use crate::movement::{Knockback, Speed, TargetEntity, TargetTransform};
 use crate::pick_target::Team;
 use crate::render::Background;
 use crate::save_load::SaveData;
+use crate::screen_fade::{spawn_screen_fade, ScreenFade};
 use crate::setup_round::{Inert, PreGameTimer, StunTimer};
 use crate::spawn_slimes::{setup_slime_spawn, GoopValue, SlimeSpawnTimer, SlimesToSpawn};
 use crate::special_abilities::{Merging, PreMerging};
-use crate::screen_fade::{spawn_screen_fade, ScreenFade};
 use crate::{CombatState, GameFont, GameState};
 
 pub struct EndRoundPlugin;
@@ -20,17 +20,17 @@ pub struct EndRoundPlugin;
 impl Plugin for EndRoundPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(OnExit(GameState::Combat), cleanup_combat_resources)
-            .add_systems(OnEnter(GameState::Combat), (init_goop_earned, spawn_combat_hud))
+            .add_systems(
+                OnEnter(GameState::Combat),
+                (init_goop_earned, spawn_combat_hud),
+            )
             .add_systems(OnEnter(CombatState::PostCombat), enter_post_combat)
             .add_systems(
                 Update,
                 (check_round_end_system, accumulate_goop_system)
                     .run_if(in_state(CombatState::DuringCombat)),
             )
-            .add_systems(
-                Update,
-                update_goop_text.run_if(in_state(GameState::Combat)),
-            )
+            .add_systems(Update, update_goop_text.run_if(in_state(GameState::Combat)))
             .add_systems(
                 Update,
                 (
@@ -108,7 +108,7 @@ fn spawn_combat_hud(mut commands: Commands, game_font: Res<GameFont>) {
             // Left spacer to balance the flexbox
             hud.spawn(Node::default());
 
-            // Bottom center: gloop counter + multiplier
+            // Bottom center: goop counter + multiplier
             hud.spawn(Node {
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
@@ -128,7 +128,7 @@ fn spawn_combat_hud(mut commands: Commands, game_font: Res<GameFont>) {
                 ));
                 col.spawn((
                     GoopText,
-                    Text::new("Gloop collected: 0"),
+                    Text::new("Goop collected: 0"),
                     TextFont {
                         font: game_font.0.clone(),
                         font_size: 32.0,
@@ -160,7 +160,7 @@ fn update_goop_text(
         return;
     }
     for mut text in &mut goop_query {
-        **text = format!("Gloop collected: {}", goop_earned.0);
+        **text = format!("Goop collected: {}", goop_earned.0);
     }
 }
 
