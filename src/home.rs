@@ -315,7 +315,7 @@ fn battle_button_system(
     }
     for interaction in &query {
         if *interaction == Interaction::Pressed {
-            spawn_screen_fade(&mut commands, GameState::Combat);
+            spawn_screen_fade(&mut commands, GameState::Combat, 1.0);
         }
     }
 }

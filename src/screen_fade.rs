@@ -21,17 +21,19 @@ pub struct ScreenFade {
     timer: Timer,
     phase: FadePhase,
     target_state: GameState,
+    phase_duration: f32,
 }
 
-/// Spawns a full-screen black overlay that fades out over 1s, transitions
-/// state at the midpoint, then fades back in over 1s before despawning.
-/// The high ZIndex ensures it covers all other UI and blocks clicks.
-pub fn spawn_screen_fade(commands: &mut Commands, target_state: GameState) {
+/// Spawns a full-screen black overlay that fades out, transitions state at
+/// the midpoint, then fades back in before despawning. Each phase lasts
+/// `phase_duration` seconds. The high ZIndex covers all other UI.
+pub fn spawn_screen_fade(commands: &mut Commands, target_state: GameState, phase_duration: f32) {
     commands.spawn((
         ScreenFade {
-            timer: Timer::from_seconds(1.0, TimerMode::Once),
+            timer: Timer::from_seconds(phase_duration, TimerMode::Once),
             phase: FadePhase::FadingOut,
             target_state,
+            phase_duration,
         },
         Node {
             width: Val::Percent(100.0),
@@ -59,7 +61,7 @@ fn screen_fade_system(
 
                 if fade.timer.is_finished() {
                     next_state.set(fade.target_state.clone());
-                    fade.timer = Timer::from_seconds(1.0, TimerMode::Once);
+                    fade.timer = Timer::from_seconds(fade.phase_duration, TimerMode::Once);
                     fade.phase = FadePhase::FadingIn;
                 }
             }

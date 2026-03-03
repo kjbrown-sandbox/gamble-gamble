@@ -222,6 +222,10 @@ fn enter_post_combat(
         )>();
     }
 
+    if !is_victory {
+        spawn_screen_fade(&mut commands, GameState::Home, 4.0);
+    }
+
     // Spawn result UI — DespawnOnExit(CombatState::PostCombat) auto-cleans it
     commands
         .spawn((
@@ -248,20 +252,18 @@ fn enter_post_combat(
                 TextLayout::new_with_justify(Justify::Center),
             ));
 
-            parent
-                .spawn(Node {
-                    flex_direction: FlexDirection::Row,
-                    column_gap: Val::Px(20.0),
-                    ..default()
-                })
-                .with_children(|row| {
-                    spawn_button(row, &game_font, "Go home", GoHomeButton);
-                    if is_victory {
-                        spawn_button(row, &game_font, "Risk deeper", VentureFurtherButton);
-                    }
-                });
-
             if is_victory {
+                parent
+                    .spawn(Node {
+                        flex_direction: FlexDirection::Row,
+                        column_gap: Val::Px(20.0),
+                        ..default()
+                    })
+                    .with_children(|row| {
+                        spawn_button(row, &game_font, "Go home", GoHomeButton);
+                        spawn_button(row, &game_font, "Risk deeper", VentureFurtherButton);
+                    });
+
                 parent
                     .spawn((
                         ButtonHintBg,
@@ -321,7 +323,6 @@ fn go_home_button_system(
     mut commands: Commands,
     query: Query<&Interaction, (Changed<Interaction>, With<GoHomeButton>)>,
     existing_fade: Query<(), With<ScreenFade>>,
-    round_result: Res<RoundResult>,
     goop_earned: Res<GoopEarned>,
     mut save_data: ResMut<SaveData>,
 ) {
@@ -330,10 +331,8 @@ fn go_home_button_system(
     }
     for interaction in &query {
         if *interaction == Interaction::Pressed {
-            if *round_result == RoundResult::Victory {
-                save_data.goop += goop_earned.0;
-            }
-            spawn_screen_fade(&mut commands, GameState::Home);
+            save_data.goop += goop_earned.0;
+            spawn_screen_fade(&mut commands, GameState::Home, 1.0);
         }
     }
 }
