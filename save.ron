@@ -1,22 +1,22 @@
 (
     army: (
         normal: (
-            count: 2,
+            count: 6,
             hp: 5,
         ),
         tanks: (
-            count: 0,
+            count: 2,
             hp: 10,
             block_chance: 0.2,
             stun_chance: 0.1,
         ),
         wizards: (
-            count: 0,
+            count: 2,
             hp: 5,
             spell_range: 500.0,
             aoe_damage: 1,
             spear_knockback: 200.0,
         ),
     ),
-    goop: 3,
+    goop: 0,
 )

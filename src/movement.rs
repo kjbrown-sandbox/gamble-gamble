@@ -171,14 +171,11 @@ fn knockback_system(
 /// The closer they are, the stronger the push. This prevents units
 /// from stacking on top of each other.
 pub fn unsmush_system(
-    mut query: Query<
-        (Entity, &mut Transform),
-        (With<Sprite>, With<Health>, With<CanBeMoved>),
-    >,
+    mut query: Query<(Entity, &mut Transform), (With<Sprite>, With<Health>, With<CanBeMoved>)>,
     time: Res<Time>,
 ) {
-    let min_x_distance = 50.0;
-    let min_y_distance = 35.0;
+    let min_x_distance = 30.0;
+    let min_y_distance = 25.0;
     let push_strength = 100.0;
 
     // Phase 1: Collect all positions so we can compare without borrow conflicts.

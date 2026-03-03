@@ -147,7 +147,7 @@ fn spawn_combat_hud(mut commands: Commands, game_font: Res<GameFont>) {
                     font_size: 28.0,
                     ..default()
                 },
-                TextColor(Color::srgb(0.7, 0.7, 0.7)),
+                TextColor(Color::WHITE),
             ));
         });
 }
@@ -322,6 +322,7 @@ fn go_home_button_system(
     mut commands: Commands,
     query: Query<&Interaction, (Changed<Interaction>, With<GoHomeButton>)>,
     existing_fade: Query<(), With<ScreenFade>>,
+    round_result: Res<RoundResult>,
     goop_earned: Res<GoopEarned>,
     mut save_data: ResMut<SaveData>,
 ) {
@@ -330,7 +331,9 @@ fn go_home_button_system(
     }
     for interaction in &query {
         if *interaction == Interaction::Pressed {
-            save_data.goop += goop_earned.0;
+            if *round_result == RoundResult::Victory {
+                save_data.goop += goop_earned.0;
+            }
             spawn_screen_fade(&mut commands, GameState::Home);
         }
     }
